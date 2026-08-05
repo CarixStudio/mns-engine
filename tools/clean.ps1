@@ -33,3 +33,4 @@ if ($files.Count -eq 0) {
 Write-Host ""
 Write-Host "Clean complete."
 Write-Host ""
+exit 0

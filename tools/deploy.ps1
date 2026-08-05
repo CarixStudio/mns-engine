@@ -1,5 +1,5 @@
 # ============================================================
-# MNS Trading Engine — Deployment Script
+# MNS Trading Engine - Deployment Script
 # ============================================================
 # Copies engine source folders from the repository into every
 # detected MetaTrader 5 MQL5 directory on this machine.
@@ -10,28 +10,21 @@
 # ============================================================
 
 param(
-    [switch] $DryRun,           # Preview actions without copying
-    [switch] $Verbose           # Show each file copied
+    [switch] $DryRun,
+    [switch] $VerboseOutput
 )
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# ── Paths ────────────────────────────────────────────────────
-$RepoRoot   = Split-Path -Parent $PSScriptRoot
-$LogDir     = Join-Path $RepoRoot "tools\logs"
-$LogFile    = Join-Path $LogDir ("deploy_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+# Paths
+$RepoRoot     = Split-Path -Parent $PSScriptRoot
+$LogDir       = Join-Path $RepoRoot "tools\logs"
+$LogFile      = Join-Path $LogDir ("deploy_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
 $TerminalBase = Join-Path $env:APPDATA "MetaQuotes\Terminal"
 
-$DeployFolders = @(
-    "Experts",
-    "Include",
-    "Indicators",
-    "Scripts",
-    "Libraries"
-)
+$DeployFolders = @("Experts", "Include", "Indicators", "Scripts", "Libraries")
 
-# ── Helpers ──────────────────────────────────────────────────
+# Helpers
 function Write-Log {
     param([string]$Message, [string]$Level = "INFO")
     $line = "[{0}] [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message
@@ -43,41 +36,50 @@ function Write-Header {
     $border = "=" * 50
     Write-Host ""
     Write-Host $border
-    Write-Host " MNS Trading Engine — Deployment"
-    if ($DryRun) { Write-Host " *** DRY RUN — no files will be copied ***" }
+    Write-Host " MNS Trading Engine - Deployment"
+    if ($DryRun) { Write-Host " *** DRY RUN - no files will be copied ***" }
     Write-Host $border
     Write-Host ""
 }
 
-# ── Discover MT5 Installations ────────────────────────────────
+# Discover MT5 installations
 function Get-MT5Installations {
     $installations = @()
-
-    if (-not (Test-Path $TerminalBase)) {
-        return $installations
-    }
+    if (-not (Test-Path $TerminalBase)) { return $installations }
 
     Get-ChildItem -Path $TerminalBase -Directory | ForEach-Object {
-        $terminalExe = Join-Path $_.FullName "terminal64.exe"
-        $mql5Dir     = Join-Path $_.FullName "MQL5"
+        $mql5Dir    = Join-Path $_.FullName "MQL5"
+        $originFile = Join-Path $_.FullName "origin.txt"
 
-        if ((Test-Path $terminalExe) -and (Test-Path $mql5Dir)) {
-            $installations += [PSCustomObject]@{
-                ID         = $_.Name
-                TerminalExe = $terminalExe
-                MQL5Dir    = $mql5Dir
+        if (Test-Path $mql5Dir) {
+            $isValid = $false
+            $installPath = ""
+            if (Test-Path $originFile) {
+                $installPath = (Get-Content $originFile -Raw).Trim()
+                $terminalExe = Join-Path $installPath "terminal64.exe"
+                if (Test-Path $terminalExe) {
+                    $isValid = $true
+                }
+            }
+
+            if ($isValid) {
+                $installations += [PSCustomObject]@{
+                    ID          = $_.Name
+                    InstallPath = $installPath
+                    MQL5Dir     = $mql5Dir
+                }
             }
         }
     }
-
     return $installations
 }
 
-# ── Deploy to a Single Installation ──────────────────────────
+# Deploy to a single installation
 function Deploy-ToInstallation {
     param([PSCustomObject]$Installation)
 
     Write-Log ("Deploying to terminal: {0}" -f $Installation.ID)
+    Write-Log ("  Install path: {0}" -f $Installation.InstallPath)
     Write-Log ("  MQL5 path: {0}" -f $Installation.MQL5Dir)
 
     $deployedCount = 0
@@ -88,7 +90,7 @@ function Deploy-ToInstallation {
         $Destination = Join-Path $Installation.MQL5Dir $Folder
 
         if (-not (Test-Path $Source)) {
-            Write-Log ("  Skipping '$Folder' — source not found in repo.") "WARN"
+            Write-Log ("  Skipping '$Folder' - source not found in repo.") "WARN"
             $skippedCount++
             continue
         }
@@ -97,45 +99,34 @@ function Deploy-ToInstallation {
 
         if (-not $DryRun) {
             $robocopyArgs = @(
-                $Source,
-                $Destination,
-                "/MIR",    # Mirror source to destination
-                "/NFL",    # No file list
-                "/NDL",    # No directory list
-                "/NJH",    # No job header
-                "/NJS",    # No job summary
-                "/NP"      # No progress percentage
+                $Source, $Destination,
+                "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"
             )
-
-            if ($Verbose) {
+            if ($VerboseOutput) {
                 $robocopyArgs = $robocopyArgs | Where-Object { $_ -ne "/NFL" }
             }
 
-            $result = robocopy @robocopyArgs
-            $exitCode = $LASTEXITCODE
-
-            # robocopy exit codes 0-7 indicate success
-            if ($exitCode -gt 7) {
-                Write-Log ("  ERROR: robocopy failed for '$Folder' (exit code $exitCode)") "ERROR"
+            robocopy @robocopyArgs | Out-Null
+            if ($LASTEXITCODE -gt 7) {
+                Write-Log ("  ERROR: robocopy failed for '$Folder' (exit $LASTEXITCODE)") "ERROR"
             }
         }
 
         $deployedCount++
     }
 
-    Write-Log ("  Done — $deployedCount folder(s) deployed, $skippedCount skipped.")
+    Write-Log ("  Done - $deployedCount folder(s) deployed, $skippedCount skipped.")
 }
 
-# ── Main ──────────────────────────────────────────────────────
+# Main
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
-
 Write-Header
 
 $installations = Get-MT5Installations
 
 if ($installations.Count -eq 0) {
     Write-Log "No MetaTrader 5 installations found." "ERROR"
-    Write-Log "Expected location: $TerminalBase" "ERROR"
+    Write-Log "Expected data directory: $TerminalBase" "ERROR"
     exit 1
 }
 
@@ -149,5 +140,6 @@ foreach ($inst in $installations) {
 
 Write-Log "Deployment complete."
 Write-Host ""
-Write-Host "Log saved to: $LogFile"
+Write-Host "Log: $LogFile"
 Write-Host ""
+exit 0
