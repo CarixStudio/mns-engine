@@ -1,0 +1,4 @@
+# Ignore sensitive credential files
+password.txt
+passwords.txt
+*.txt
