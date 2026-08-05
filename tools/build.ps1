@@ -17,7 +17,6 @@ param(
     [switch] $Verbose     # Pass through to deploy.ps1
 )
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $ScriptsDir = $PSScriptRoot
@@ -31,7 +30,7 @@ Write-Host ""
 # ── Step 1: Clean ────────────────────────────────────────────
 Write-Host "--- Step 1: Clean ---"
 & "$ScriptsDir\clean.ps1"
-if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+if ($LASTEXITCODE -and ($LASTEXITCODE -ne 0)) {
     Write-Host "ERROR: clean.ps1 failed." -ForegroundColor Red
     exit 1
 }
@@ -43,7 +42,7 @@ if ($DryRun)  { $deployArgs += "-DryRun" }
 if ($Verbose) { $deployArgs += "-Verbose" }
 
 & "$ScriptsDir\deploy.ps1" @deployArgs
-if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+if ($LASTEXITCODE -and ($LASTEXITCODE -ne 0)) {
     Write-Host "ERROR: deploy.ps1 failed." -ForegroundColor Red
     exit 1
 }
