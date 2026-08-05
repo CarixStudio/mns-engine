@@ -29,6 +29,16 @@
 #pragma once
 
 //+------------------------------------------------------------------+
+//| Version Information                                              |
+//+------------------------------------------------------------------+
+
+/// @brief MNS Trading Engine version string for logging and diagnostics.
+#define MNS_ENGINE_VERSION "1.0.0"
+
+/// @brief MNSTypes module identifier — matches the module specification number.
+#define MNS_MODULE_VERSION "001"
+
+//+------------------------------------------------------------------+
 //| Constants                                                        |
 //+------------------------------------------------------------------+
 
@@ -36,7 +46,11 @@
 const int MNS_INVALID_INDEX = -1;
 
 /// @brief Sentinel value for an uninitialized or invalid price level.
-const double MNS_INVALID_PRICE = 0.0;
+///
+/// Uses EMPTY_VALUE (defined by MT5 as DBL_MAX) rather than 0.0,
+/// because 0.0 is a valid price in some contexts and would cause
+/// accidental false-positive comparisons against unset fields.
+const double MNS_INVALID_PRICE = EMPTY_VALUE;
 
 /// @brief Sentinel value for an uninitialized datetime.
 const datetime MNS_INVALID_TIME = 0;
@@ -251,6 +265,7 @@ struct SStructureBreak
 ///   isRanging          — True when the market is in a ranging condition.
 ///   updatedBarIndex    — Bar index of the last engine update cycle.
 ///   updatedTime        — Datetime of the last engine update cycle.
+///   version            — Structure schema version for future compatibility.
 //-------------------------------------------------------------------
 struct SMarketState
 {
@@ -266,6 +281,7 @@ struct SMarketState
     bool            isRanging;           ///< True when market is ranging.
     int             updatedBarIndex;     ///< Bar index of the last engine update.
     datetime        updatedTime;         ///< Datetime of the last engine update.
+    uint            version;             ///< Schema version — increment when SMarketState fields change.
 
     /// @brief Initializes all fields to safe default values.
     void Reset()
@@ -278,6 +294,7 @@ struct SMarketState
         isRanging          = false;
         updatedBarIndex    = MNS_INVALID_INDEX;
         updatedTime        = MNS_INVALID_TIME;
+        version            = 1;
         lastBOS.Reset();
         lastCHoCH.Reset();
         lastSwingHigh.Reset();
