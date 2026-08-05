@@ -42,18 +42,23 @@ mns-engine/
 │   ├── Decisions.md
 │   ├── TestingStrategy.md
 │   ├── AI_PROMPTS.md
-│   ├── RepositoryGuide.md
 │   └── modules/
 │
-├── src/
-│   ├── Experts/
-│   ├── Indicators/
-│   ├── Include/
-│   ├── Libraries/
-│   └── Scripts/
+├── Include/
+│   └── MNS/
+│       └── MNSTypes.mqh
+├── Experts/
+│   └── MNS_TestHarness/
+├── Indicators/
+├── Scripts/
+├── Libraries/
+│
+├── tools/
+│   ├── build.ps1
+│   ├── deploy.ps1
+│   └── clean.ps1
 │
 ├── tests/
-├── tools/
 ├── assets/
 ├── .github/
 │
@@ -169,33 +174,35 @@ Every module progresses through the following lifecycle:
 
 ---
 
-# Development Workflow
+## Development Workflow
 
-Every implementation follows the same process:
+1. Develop inside VS Code.
 
+2. Run
+
+```powershell
+.\tools\build.ps1
 ```
-Specification
-      │
-      ▼
-Prompt
-      │
-      ▼
-Implementation
-      │
-      ▼
-Compile
-      │
-      ▼
-Review
-      │
-      ▼
-Testing
-      │
-      ▼
-Commit
-```
+
+3. Open MetaEditor.
+
+4. Press F7.
+
+5. Open MT5.
+
+6. Test.
+
+7. Commit changes.
 
 ---
+
+# Build Tools
+
+| Script | Purpose |
+|---|---|
+| `tools/build.ps1` | Full pipeline — clean, deploy, prompt to compile |
+| `tools/deploy.ps1` | Sync repo to all MT5 installations (auto-detected) |
+| `tools/clean.ps1` | Remove compiled `.ex5` binaries from repo |
 
 # Build Environment
 
