@@ -1,4 +1,19 @@
 # Ignore sensitive credential files
 password.txt
 passwords.txt
-*.txt
+password*.txt
+
+# MT5 generated files
+*.ex5
+*.log
+*.tmp
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Git
+.DS_Store
