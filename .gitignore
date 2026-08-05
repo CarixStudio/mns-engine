@@ -17,3 +17,14 @@ Desktop.ini
 
 # Git
 .DS_Store
+
+# MetaEditor generated files
+.mql-auto-forwards/
+compile_commands.json
+
+# IDE tooling
+.clang-format
+.clangd
+
+# Legacy (removed)
+src/
