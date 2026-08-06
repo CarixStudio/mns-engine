@@ -117,10 +117,19 @@ The AI generates production-quality MQL5 code.
 Requirements:
 
 - Complete implementation
-- No placeholders
-- No TODOs
+- No implementation placeholders
 - Fully documented
 - Standards compliant
+
+TODOs are permitted ONLY for rules that are missing or ambiguous in
+the strategy document. Every such TODO must:
+
+1. Be documented in docs/TODO_STRATEGY.md with its OPEN-xxx identifier.
+2. Include a comment citing the exact missing rule.
+3. Be resolved before the module is marked complete.
+
+TODOs that represent missing implementation (as opposed to missing
+strategy specification) are not permitted.
 
 ---
 
