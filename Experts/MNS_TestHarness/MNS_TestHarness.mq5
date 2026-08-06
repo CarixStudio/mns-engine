@@ -29,6 +29,7 @@
 
 #include "..\\..\\Include\\MNS\\MNSTypes.mqh"
 #include "..\\..\\Include\\MNS\\CSwingDetector.mqh"
+#include "..\\..\\Include\\MNS\\CStructureEngine.mqh"
 
 //+------------------------------------------------------------------+
 //| Test result tracking                                             |
@@ -358,6 +359,279 @@ void RunModule002Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module 003 — CStructureEngine validation                         |
+//+------------------------------------------------------------------+
+void RunModule003Tests()
+{
+    Print("--- Module 003: CStructureEngine ---");
+
+    //------------------------------------------------------------------
+    //| Test 1: Initialize() and Reset()
+    //------------------------------------------------------------------
+    CStructureEngine engine;
+    bool initResult = engine.Initialize(0.0);
+    AssertTrue(initResult == true, "CStructureEngine.Initialize() returns true");
+
+    SMarketState state = engine.GetState();
+    AssertTrue(state.trend == TREND_UNKNOWN, "Default trend is TREND_UNKNOWN");
+    AssertTrue(state.phase == PHASE_UNKNOWN, "Default phase is PHASE_UNKNOWN");
+    AssertTrue(engine.GetConfidenceScore() == 1.0, "Default confidence score (version) is 1.0");
+
+    //------------------------------------------------------------------
+    //| Test 2: Update() with empty detector
+    //------------------------------------------------------------------
+    CSwingDetector detector;
+    detector.Initialize(MNS_SWING_EXTERNAL_DEPTH, MNS_SWING_INTERNAL_DEPTH);
+    bool updateResultEmpty = engine.Update(detector, 0.0010);
+    AssertTrue(updateResultEmpty == false, "Update() on empty detector returns false");
+
+    //------------------------------------------------------------------
+    //| Test 3: Bullish Trend and Trending Phase
+    //|
+    //| We construct a 150-bar dataset with 6 external swings (depth 15):
+    //|   - Low at 130: 1.1400
+    //|   - High at 110: 1.2600
+    //|   - Low at 90: 1.1500 (HL)
+    //|   - High at 70: 1.2700 (HH)
+    //|   - Low at 50: 1.1600 (HL)
+    //|   - High at 30: 1.2800 (HH)
+    //------------------------------------------------------------------
+    #define BULLISH_BARS 150
+    double   bullishHigh[BULLISH_BARS];
+    double   bullishLow[BULLISH_BARS];
+    datetime bullishTime[BULLISH_BARS];
+
+    for (int i = 0; i < BULLISH_BARS; i++)
+    {
+        bullishHigh[i] = 1.2000;
+        bullishLow[i]  = 1.1900;
+        bullishTime[i] = (datetime)((BULLISH_BARS - 1 - i) * 3600);
+    }
+
+    // Lows
+    for (int i = 115; i <= 145; i++) bullishLow[i] = 1.1900;
+    bullishLow[130] = 1.1400;
+
+    for (int i = 75; i <= 105; i++) bullishLow[i] = 1.1900;
+    bullishLow[90] = 1.1500;
+
+    for (int i = 35; i <= 65; i++) bullishLow[i] = 1.1900;
+    bullishLow[50] = 1.1600;
+
+    // Highs
+    for (int i = 95; i <= 125; i++) bullishHigh[i] = 1.2000;
+    bullishHigh[110] = 1.2600;
+
+    for (int i = 55; i <= 85; i++) bullishHigh[i] = 1.2000;
+    bullishHigh[70] = 1.2700;
+
+    for (int i = 15; i <= 45; i++) bullishHigh[i] = 1.2000;
+    bullishHigh[30] = 1.2800;
+
+    CSwingDetector bullishDetector;
+    bullishDetector.Initialize(15, 5);
+    bullishDetector.Update(bullishHigh, bullishLow, bullishTime, BULLISH_BARS, 0);
+    
+    AssertTrue(bullishDetector.GetExternalSwingCount() == 6, "Bullish test dataset confirms 6 external swings");
+
+    CStructureEngine bullishEngine;
+    bullishEngine.Initialize(0.0);
+    bool engineUpdate = bullishEngine.Update(bullishDetector, 0.0010);
+    AssertTrue(engineUpdate == true, "CStructureEngine.Update() on bullish swings returns true");
+
+    SMarketState bullishState = bullishEngine.GetState();
+    AssertTrue(bullishState.trend == TREND_BULLISH, "Trend is Bullish");
+    AssertTrue(bullishState.phase == PHASE_TRENDING, "Phase is Trending");
+    AssertTrue(bullishState.isBullishStructure == true, "isBullishStructure is true");
+    AssertTrue(bullishState.isBearishStructure == false, "isBearishStructure is false");
+    AssertTrue(bullishState.isRanging == false, "isRanging is false");
+    AssertTrue(bullishEngine.GetConfidenceScore() == 94.0, "Confidence score is 94.0");
+
+    #undef BULLISH_BARS
+
+    //------------------------------------------------------------------
+    //| Test 4: Bearish Trend
+    //|
+    //| We construct a 150-bar dataset with 6 external swings (depth 15):
+    //|   - High at 130: 1.2800
+    //|   - Low at 110: 1.1600
+    //|   - High at 90: 1.2700 (LH)
+    //|   - Low at 70: 1.1500 (LL)
+    //|   - High at 50: 1.2600 (LH)
+    //|   - Low at 30: 1.1400 (LL)
+    //------------------------------------------------------------------
+    #define BEARISH_BARS 150
+    double   bearishHigh[BEARISH_BARS];
+    double   bearishLow[BEARISH_BARS];
+    datetime bearishTime[BEARISH_BARS];
+
+    for (int i = 0; i < BEARISH_BARS; i++)
+    {
+        bearishHigh[i] = 1.2000;
+        bearishLow[i]  = 1.1900;
+        bearishTime[i] = (datetime)((BEARISH_BARS - 1 - i) * 3600);
+    }
+
+    // Highs
+    for (int i = 115; i <= 145; i++) bearishHigh[i] = 1.2000;
+    bearishHigh[130] = 1.2800;
+
+    for (int i = 75; i <= 105; i++) bearishHigh[i] = 1.2000;
+    bearishHigh[90] = 1.2700;
+
+    for (int i = 35; i <= 65; i++) bearishHigh[i] = 1.2000;
+    bearishHigh[50] = 1.2600;
+
+    // Lows
+    for (int i = 95; i <= 125; i++) bearishLow[i] = 1.1900;
+    bearishLow[110] = 1.1600;
+
+    for (int i = 55; i <= 85; i++) bearishLow[i] = 1.1900;
+    bearishLow[70] = 1.1500;
+
+    for (int i = 15; i <= 45; i++) bearishLow[i] = 1.1900;
+    bearishLow[30] = 1.1400;
+
+    CSwingDetector bearishDetector;
+    bearishDetector.Initialize(15, 5);
+    bearishDetector.Update(bearishHigh, bearishLow, bearishTime, BEARISH_BARS, 0);
+
+    AssertTrue(bearishDetector.GetExternalSwingCount() == 6, "Bearish test dataset confirms 6 external swings");
+
+    CStructureEngine bearishEngine;
+    bearishEngine.Initialize(0.0);
+    bearishEngine.Update(bearishDetector, 0.0010);
+
+    SMarketState bearishState = bearishEngine.GetState();
+    AssertTrue(bearishState.trend == TREND_BEARISH, "Trend is Bearish");
+    AssertTrue(bearishState.phase == PHASE_TRENDING, "Phase is Trending");
+    AssertTrue(bearishState.isBearishStructure == true, "isBearishStructure is true");
+
+    #undef BEARISH_BARS
+
+    //------------------------------------------------------------------
+    //| Test 5: Bullish Pullback Phase
+    //|
+    //| External trend is Bullish (established by older pivots):
+    //|   - Low at 140: 1.1400 (depth 15)
+    //|   - High at 120: 1.2600 (depth 15)
+    //|   - Low at 100: 1.1500 (depth 15)
+    //|   - High at 80:  1.2700 (depth 15)
+    //|   - Low at 65:  1.1600 (depth 15)
+    //|   - High at 50: 1.2800 (depth 15)
+    //|
+    //| Internal trend is Bearish (established by newer micro pivots).
+    //| These points are spaced 14 bars apart so they FAIL the depth-15
+    //| external check but PASS the depth-5 internal check.
+    //| The 6 external points also qualify as internal swings (depth 5),
+    //| giving 6 + 4 = 10 total internal swings.
+    //|
+    //|   - High at 36: 1.2500 (internal only, fails external)
+    //|   - Low at 28:  1.1400 (internal only, fails external: index 14 is in right window)
+    //|   - High at 22: 1.2400 (internal only, fails external: index 36 is in left window)
+    //|   - Low at 14:  1.1300 (internal only, fails external: right bound out of range)
+    //------------------------------------------------------------------
+    #define PB_BARS 160
+    double   pbHigh[PB_BARS];
+    double   pbLow[PB_BARS];
+    datetime pbTime[PB_BARS];
+
+    for (int i = 0; i < PB_BARS; i++)
+    {
+        pbHigh[i] = 1.2000;
+        pbLow[i]  = 1.1900;
+        pbTime[i] = (datetime)((PB_BARS - 1 - i) * 3600);
+    }
+
+    // External Lows (depth 15)
+    pbLow[140] = 1.1400;
+    pbLow[100] = 1.1500;
+    pbLow[65]  = 1.1600;
+
+    // External Highs (depth 15)
+    pbHigh[120] = 1.2600;
+    pbHigh[80]  = 1.2700;
+    pbHigh[50]  = 1.2800;
+
+    // Internal Lows (depth 5, fail depth 15 because they are too close to each other)
+    pbLow[28] = 1.1400;
+    pbLow[14] = 1.1300;
+
+    // Internal Highs (depth 5, fail depth 15)
+    pbHigh[36] = 1.2500;
+    pbHigh[22] = 1.2400;
+
+    CSwingDetector pbDetector;
+    pbDetector.Initialize(15, 5);
+    pbDetector.Update(pbHigh, pbLow, pbTime, PB_BARS, 0);
+
+    AssertTrue(pbDetector.GetExternalSwingCount() == 6, "Pullback test dataset confirms 6 external swings");
+    AssertTrue(pbDetector.GetInternalSwingCount() == 10, "Pullback test dataset confirms 10 internal swings");
+
+    CStructureEngine pbEngine;
+    pbEngine.Initialize(0.0);
+    pbEngine.Update(pbDetector, 0.0010);
+
+    SMarketState pbState = pbEngine.GetState();
+    AssertTrue(pbState.trend == TREND_BULLISH, "External trend remains Bullish");
+    AssertTrue(pbState.phase == PHASE_PULLBACK, "Phase is Pullback");
+
+    #undef PB_BARS
+
+    //------------------------------------------------------------------
+    //| Test 6: Equal Highs / Equal Lows (Ranging Trend)
+    //|
+    //| We construct a sequence of swings within the ATR tolerance (0.10 * ATR):
+    //| ATR = 0.0100 -> Tolerance = 0.0010
+    //| Swings:
+    //|   - Low at 130: 1.1500
+    //|   - High at 110: 1.2500
+    //|   - Low at 90: 1.1505 (Diff = 0.0005 <= 0.0010 -> Equal Low)
+    //|   - High at 70: 1.2495 (Diff = 0.0005 <= 0.0010 -> Equal High)
+    //|   - Low at 50: 1.1502 (Diff = 0.0003 <= 0.0010 -> Equal Low)
+    //|   - High at 30: 1.2504 (Diff = 0.0009 <= 0.0010 -> Equal High)
+    //------------------------------------------------------------------
+    #define RANGE_BARS 150
+    double   rangeHigh[RANGE_BARS];
+    double   rangeLow[RANGE_BARS];
+    datetime rangeTime[RANGE_BARS];
+
+    for (int i = 0; i < RANGE_BARS; i++)
+    {
+        rangeHigh[i] = 1.2000;
+        rangeLow[i]  = 1.1900;
+        rangeTime[i] = (datetime)((RANGE_BARS - 1 - i) * 3600);
+    }
+
+    // Lows
+    rangeLow[130] = 1.1500;
+    rangeLow[90]  = 1.1505;
+    rangeLow[50]  = 1.1502;
+
+    // Highs
+    rangeHigh[110] = 1.2500;
+    rangeHigh[70]  = 1.2495;
+    rangeHigh[30]  = 1.2504;
+
+    CSwingDetector rangeDetector;
+    rangeDetector.Initialize(15, 5);
+    rangeDetector.Update(rangeHigh, rangeLow, rangeTime, RANGE_BARS, 0);
+
+    CStructureEngine rangeEngine;
+    rangeEngine.Initialize(0.0);
+    rangeEngine.Update(rangeDetector, 0.0100);
+
+    SMarketState rangeState = rangeEngine.GetState();
+    AssertTrue(rangeState.trend == TREND_RANGING, "Trend is Ranging");
+    AssertTrue(rangeState.phase == PHASE_RANGING, "Phase is Ranging");
+    AssertTrue(rangeState.isRanging == true, "isRanging is true");
+
+    #undef RANGE_BARS
+
+    Print("--- Module 003 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -375,6 +649,10 @@ int OnInit()
     Print("----------------------------------------------");
 
     RunModule002Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule003Tests();
 
     //--- Print summary
     Print("==============================================");
