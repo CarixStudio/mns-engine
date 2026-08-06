@@ -156,4 +156,7 @@ Ensure the following TODOs are placed in the code comments referencing their OPE
 
 ---
 
-Please output the complete contents of `CStructureEngine.mqh` inside a single markdown code block. Do not use any external dependencies.
+Please generate and write the complete, clean MQL5 source code directly to the file:
+`Include/MNS/CStructureEngine.mqh`
+
+Overwrite any existing content in that file. Do not use external dependencies.
