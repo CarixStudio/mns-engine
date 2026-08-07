@@ -122,18 +122,33 @@ Before submitting code, verify:
 
 ---
 
-### STEP 7 — Produce Supporting Artefacts
+### STEP 7 — Execute Build Automation & Archiving
 
-After the code is generated:
-1. **Test harness additions** — new test cases for `MNS_TestHarness.mq5`.
-2. **Validation checklist** — what to verify after compile.
-3. **Expected compile result** — "0 errors, 0 warnings".
-4. **Git commit message** — following convention:
+Once the code is written, use the automated build pipeline to test, compile, archive the logs, and commit:
+
+1. **Run the build automation script** from the project root:
+   ```powershell
+   .\tools\Build-And-Archive.ps1 -Module "ModuleNNN"
    ```
-   feat: implement CModuleName (Module NNN)
-   ```
+   This script will:
+   - Deploy/sync source code changes directly to the MT5 MQL5 data directory.
+   - Run MetaEditor compiler CLI against `MNS_TestHarness.mq5`.
+   - Pause for test execution.
+2. **Execute the tests**:
+   - Open MT5 and attach `MNS_TestHarness` to any chart.
+   - Watch the logs in the VS Code "MQL Clangd" Logs panel (using "Standard Logs" mode).
+3. **Archive & Commit**:
+   - If all tests pass (`ALL TESTS PASSED`), go back to the terminal and press **ENTER**.
+   - The script will automatically copy the latest MT5 log into the `artifacts/logs/` folder.
+   - Choose `Y` to create a git commit, and enter a descriptive message (e.g. `feat(003): implement CStructureEngine with full test coverage`).
+4. **Git Tag**:
+   - Tag the release commit manually:
+     ```powershell
+     git tag -a v0.0.N -m "Release Module NNN: CModuleName"
+     ```
 
 ---
+
 
 ### STEP 8 — Update Strategy TODO Tracker
 

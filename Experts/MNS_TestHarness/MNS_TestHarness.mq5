@@ -30,6 +30,7 @@
 #include "..\\..\\Include\\MNS\\MNSTypes.mqh"
 #include "..\\..\\Include\\MNS\\CSwingDetector.mqh"
 #include "..\\..\\Include\\MNS\\CStructureEngine.mqh"
+#include "..\\..\\Include\\MNS\\CBreakDetector.mqh"
 
 //+------------------------------------------------------------------+
 //| Test result tracking                                             |
@@ -632,6 +633,121 @@ void RunModule003Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module 004 — CBreakDetector validation                           |
+//+------------------------------------------------------------------+
+void RunModule004Tests()
+{
+    Print("--- Module 004: CBreakDetector ---");
+
+    // Test 1: Initialize and Reset
+    CBreakDetector detector;
+    bool initResult = detector.Initialize();
+    AssertTrue(initResult == true, "CBreakDetector.Initialize() returns true");
+    AssertTrue(detector.GetBreakCount() == 0, "Initial break count is 0");
+
+    // Test 2: Empty state getters return empty sentinels
+    SStructureBreak emptyBOS = detector.GetLatestBOS();
+    SStructureBreak emptyIBOS = detector.GetLatestIBOS();
+    SStructureBreak emptyCHOCH = detector.GetLatestCHOCH();
+    AssertTrue(emptyBOS.isConfirmed == false, "Default latest BOS is unconfirmed");
+    AssertTrue(emptyIBOS.isConfirmed == false, "Default latest iBOS is unconfirmed");
+    AssertTrue(emptyCHOCH.isConfirmed == false, "Default latest CHoCH is unconfirmed");
+
+    // Test 3: BOS Break Detection
+    #define BREAK_TEST_BARS 150
+    double   testHigh[BREAK_TEST_BARS];
+    double   testLow[BREAK_TEST_BARS];
+    double   testOpen[BREAK_TEST_BARS];
+    double   testClose[BREAK_TEST_BARS];
+    datetime testTime[BREAK_TEST_BARS];
+
+    for (int i = 0; i < BREAK_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+        testTime[i]  = (datetime)((BREAK_TEST_BARS - 1 - i) * 3600);
+    }
+
+    // Lows to plant swings
+    testLow[130] = 1.1400;
+    testLow[90] = 1.1500;
+    testLow[50] = 1.1600;
+
+    // Highs to plant swings
+    testHigh[110] = 1.2600;
+    testHigh[70] = 1.2700;
+    testHigh[30] = 1.2800;
+
+    // Create a body close above the swing high at 70 (price 1.2700) at index 54
+    testClose[54] = 1.2750;
+    testHigh[54]  = 1.2780; 
+    testLow[54]   = 1.2700;
+
+    CSwingDetector swingDetector;
+    swingDetector.Initialize(15, 5);
+    swingDetector.Update(testHigh, testLow, testTime, BREAK_TEST_BARS, 0);
+
+    CStructureEngine structureEngine;
+    structureEngine.Initialize(0.0);
+    structureEngine.Update(swingDetector, 0.0010); 
+
+    CBreakDetector breakDetector;
+    breakDetector.Initialize();
+    bool updated = breakDetector.Update(swingDetector, structureEngine, testHigh, testLow, testClose, testOpen, testTime, BREAK_TEST_BARS, 0, 0.0010);
+
+    AssertTrue(updated == true, "Update returns true when breaks are detected");
+    AssertTrue(breakDetector.GetBreakCount() > 0, "At least one break detected");
+    AssertTrue(breakDetector.HasBullishBOS() == true, "HasBullishBOS() returns true");
+
+    SStructureBreak latestBOS = breakDetector.GetLatestBOS();
+    AssertTrue(latestBOS.brokenSwing.price == 1.2700, "BOS broken swing price matches swing high at 70");
+    AssertTrue(latestBOS.breakType == BREAK_BOS, "Break type is BREAK_BOS");
+
+    // Test 4: Bearish CHoCH detection
+    // Re-initialize arrays to baseline to clear Test 3 pollution
+    for (int i = 0; i < BREAK_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+        testTime[i]  = (datetime)((BREAK_TEST_BARS - 1 - i) * 3600);
+    }
+
+    // Restore swing low pivots
+    testLow[130] = 1.1400;
+    testLow[90] = 1.1500;
+    testLow[50] = 1.1600;
+
+    // Restore swing high pivots
+    testHigh[110] = 1.2600;
+    testHigh[70] = 1.2700;
+    testHigh[30] = 1.2800;
+
+    // Plant CHoCH wick break at index 5
+    testLow[5] = 1.1550;
+    testClose[5] = 1.1650;
+    testHigh[5] = 1.1700;
+
+    swingDetector.Reset();
+    swingDetector.Update(testHigh, testLow, testTime, BREAK_TEST_BARS, 0);
+    structureEngine.Reset();
+    structureEngine.Update(swingDetector, 0.0010);
+    breakDetector.Reset();
+    breakDetector.Update(swingDetector, structureEngine, testHigh, testLow, testClose, testOpen, testTime, BREAK_TEST_BARS, 0, 0.0010);
+
+    AssertTrue(breakDetector.HasBearishCHOCH() == true, "HasBearishCHOCH() is true after wick-only break of protected low");
+    SStructureBreak latestCHOCH = breakDetector.GetLatestCHOCH();
+    AssertTrue(latestCHOCH.brokenSwing.price == 1.1600, "CHoCH broken swing price is 1.1600");
+
+    #undef BREAK_TEST_BARS
+
+    Print("--- Module 004 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -653,6 +769,10 @@ int OnInit()
     Print("----------------------------------------------");
 
     RunModule003Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule004Tests();
 
     //--- Print summary
     Print("==============================================");
