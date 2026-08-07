@@ -126,21 +126,27 @@ Tagged: v0.0.4
 
 ---
 
-## Module 005 — CTrendEngine
+## Module 005 — COrderFlowEngine
 
-Consumes BOS and CHoCH. Determines directional bias.
+Consumes market structure. Evaluates order flow state.
 
 Produces:
-- Bullish
-- Bearish
-- Transitioning
-- Ranging
+- Order Flow state
 
 ---
 
-## Module 006 — CLiquidityEngine
+## Module 006 — CDeliveryStructureEngine
 
-Identifies liquidity in the market.
+Consumes order flow. Evaluates delivery structure.
+
+Produces:
+- Delivery state
+
+---
+
+## Module 007 — CLiquidityEngine
+
+Identifies liquidity in the market (Draw on Liquidity / DOL).
 
 Produces:
 - Equal Highs (EQH)
@@ -150,7 +156,7 @@ Produces:
 
 ---
 
-## Module 007 — CPOIEngine
+## Module 008 — CPOIEngine
 
 Points of Interest detection.
 
@@ -165,18 +171,19 @@ Produces:
 
 ---
 
-## Module 008 — CPremiumDiscountEngine
+## Module 009 — CObjectiveEngine
 
-Calculates market position relative to range.
-
-Produces:
-- Premium
-- Discount
-- Equilibrium
+Calculates market objectives.
 
 ---
 
-## Module 009 — CEntryEngine
+## Module 010 — CConfirmationEngine
+
+Detects entry confirmations.
+
+---
+
+## Module 011 — CEntryEngine
 
 Identifies entry opportunities.
 
@@ -187,7 +194,7 @@ Produces:
 
 ---
 
-## Module 010 — CRiskEngine
+## Module 012 — CRiskEngine
 
 Calculates trade risk parameters.
 
@@ -199,71 +206,16 @@ Produces:
 
 ---
 
-## Module 011 — CTradeManager
-
-Manages active trade lifecycle. EA only.
-
-Produces:
-- Break even logic
-- Trailing stop logic
-- Partial close logic
-- Trade lifecycle state
-
----
-
-## Module 012 — Indicator Integration
+## Module 013 — CIndicatorIntegration
 
 First time the engine outputs are visible on a chart.
-
 Connects all engine modules to the rendering layer.
 
-Draws:
-- Swing points
-- BOS / CHoCH labels
-- Trend state
-- Liquidity levels
-- Order Blocks
-- Fair Value Gaps
-- Premium / Discount range
-
-Rule: Zero analysis logic in the rendering layer.
-The rendering layer only reads engine outputs and draws objects.
-
 ---
 
-## Module 013 — Dashboard
+## Module 014 — CEAIntegration
 
-On-chart information panel. Read-only.
-
-Displays:
-```
-------------------------------------
-Trend          Bullish
-Structure      HH HL HH
-BOS            Confirmed
-CHoCH          None
-Liquidity      Above
-POI            Bullish OB
-Discount       YES
-Signal         Waiting
-------------------------------------
-```
-
-Rule: No trading logic. Display only.
-
----
-
-## Module 014 — Public Indicator Release
-
-All modules packaged into the final deliverable:
-
-```
-MNSIndicator.mq5
-```
-
-The Indicator is now complete for client testing and feedback.
-
-This is the primary client deliverable.
+Expert Advisor integration and trade execution.
 
 ---
 
@@ -374,34 +326,34 @@ Module 003 — CStructureEngine
 Module 004 — CBreakDetector
       │
       ▼
-Module 005 — CTrendEngine
+Module 005 — COrderFlowEngine
       │
       ▼
-Module 006 — CLiquidityEngine
+Module 006 — CDeliveryStructureEngine
       │
       ▼
-Module 007 — CPOIEngine
+Module 007 — CLiquidityEngine
       │
       ▼
-Module 008 — CPremiumDiscountEngine
+Module 008 — CPOIEngine
       │
       ▼
-Module 009 — CEntryEngine
+Module 009 — CObjectiveEngine
       │
       ▼
-Module 010 — CRiskEngine
+Module 010 — CConfirmationEngine
       │
       ▼
-Module 011 — CTradeManager
+Module 011 — CEntryEngine
       │
       ▼
-Module 012 — Indicator Integration
+Module 012 — CRiskEngine
       │
       ▼
-Module 013 — Dashboard
+Module 013 — CIndicatorIntegration
       │
       ▼
-Module 014 — Public Indicator
+Module 014 — CEAIntegration
       │
       ▼
 Testing and Validation

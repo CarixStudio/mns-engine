@@ -103,200 +103,81 @@ Internal BOS
 
 ## Module 005
 
-Trend Engine
+Order Flow Engine (COrderFlowEngine)
 
-Consumes BOS.
-
-Outputs
-
-```
-Bullish
-
-Bearish
-
-Transition
-
-Range
-```
+Consumes market structure. Evaluates order flow state.
 
 ---
 
 ## Module 006
 
-Liquidity Engine
+Delivery Structure Engine (CDeliveryStructureEngine)
 
-Finds
-
-```
-Equal Highs
-
-Equal Lows
-
-Liquidity pools
-
-Liquidity grabs
-```
+Consumes order flow. Evaluates delivery structure.
 
 ---
 
 ## Module 007
 
-POI Engine
+Liquidity Engine (CLiquidityEngine)
 
-Produces
-
-```
-Order Blocks
-
-Breaker Blocks
-
-Mitigation Blocks
-
-FVG
-
-IFVG
-
-Supply
-
-Demand
-```
+Identifies liquidity in the market (Draw on Liquidity / DOL).
 
 ---
 
 ## Module 008
 
-Premium / Discount Engine
+POI Engine (CPOIEngine)
 
-Calculates
-
-```
-Premium
-
-Discount
-
-Equilibrium
-```
+Points of Interest detection (Order Blocks, Breaker Blocks, FVG, etc.).
 
 ---
 
 ## Module 009
 
-Entry Engine
+Objective Engine (CObjectiveEngine)
 
-Looks for
-
-```
-Entry models
-
-Confirmation
-
-Trigger candle
-```
+Calculates market objectives.
 
 ---
 
 ## Module 010
 
-Risk Engine
+Confirmation Engine (CConfirmationEngine)
 
-Calculates
-
-```
-SL
-
-TP
-
-RR
-
-Position sizing
-```
+Detects entry confirmations.
 
 ---
 
 ## Module 011
 
-Trade Manager
+Entry Engine (CEntryEngine)
 
-Handles
-
-```
-Break even
-
-Trailing
-
-Partial closes
-
-Trade lifecycle
-```
+Identifies entry opportunities.
 
 ---
 
 ## Module 012
 
-Indicator Integration
+Risk Engine (CRiskEngine)
 
-Now—
-
-Everything we've built finally gets connected.
-
-The indicator begins drawing
-
-* Swings
-* BOS
-* CHoCH
-* Trend
-* Liquidity
-* Order Blocks
-* FVG
-* Premium/Discount
-* Labels
-
-This is where users finally see something on the chart.
+Calculates trade risk parameters.
 
 ---
 
 ## Module 013
 
-Dashboard
+Indicator Integration (CIndicatorIntegration)
 
-Now build the on-chart dashboard.
-
-Example:
-
-```
-------------------------------------
-Trend          Bullish
-Structure      HH HL HH
-BOS            Confirmed
-CHoCH          None
-Liquidity      Above
-POI            Bullish OB
-Discount       YES
-Signal         Waiting
-------------------------------------
-```
-
-This is purely UI.
-
-No trading.
+First time the engine outputs are visible on a chart.
 
 ---
 
 ## Module 014
 
-Public Indicator
+EA Integration (CEAIntegration)
 
-Everything becomes
-
-```
-Indicator.mq5
-```
-
-The indicator is now complete.
-
-The client can test.
-
-This is where lots of feedback and corrections happen.
+Expert Advisor integration and trade execution.
 
 Exactly as your client wanted.
 
