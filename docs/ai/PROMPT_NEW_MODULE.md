@@ -122,25 +122,21 @@ Before submitting code, verify:
 
 ---
 
-### STEP 7 — Execute Build Automation & Archiving
+### STEP 7 — Instruct User to Execute Build Automation & Archiving
 
-Once the code is written, use the automated build pipeline to test, compile, archive the logs, and commit:
+Once the code is written and self-reviewed, present the files and instructions to the user. Do NOT attempt to execute build scripts, run MetaTrader, or make git commits/tags yourself. 
 
+Instruct the user to perform the following steps:
 1. **Run the build automation script** from the project root:
    ```powershell
    .\tools\Build-And-Archive.ps1 -Module "ModuleNNN"
    ```
-   This script will:
-   - Deploy/sync source code changes directly to the MT5 MQL5 data directory.
-   - Run MetaEditor compiler CLI against `MNS_TestHarness.mq5`.
-   - Pause for test execution.
 2. **Execute the tests**:
    - Open MT5 and attach `MNS_TestHarness` to any chart.
-   - Watch the logs in the VS Code "MQL Clangd" Logs panel (using "Standard Logs" mode).
+   - Wait for the EA to run and self-remove.
 3. **Archive & Commit**:
-   - If all tests pass (`ALL TESTS PASSED`), go back to the terminal and press **ENTER**.
-   - The script will automatically copy the latest MT5 log into the `artifacts/logs/` folder.
-   - Choose `Y` to create a git commit, and enter a descriptive message (e.g. `feat(003): implement CStructureEngine with full test coverage`).
+   - Once tests pass, press **ENTER** in the build script terminal to archive logs.
+   - Choose `Y` to create the git commit and enter the descriptive commit message.
 4. **Git Tag**:
    - Tag the release commit manually:
      ```powershell
