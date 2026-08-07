@@ -442,12 +442,28 @@ function Invoke-ArchiveLog {
         Exit-WithError "Archive already exists - will not overwrite: $archiveDest"
     }
 
-    # Copy the log.
+    # Copy only the latest test run from the log.
     try {
-        Copy-Item -Path $newestLog.FullName -Destination $archiveDest -ErrorAction Stop
+        $lines = Get-Content -Path $newestLog.FullName -Encoding Unicode
+        $startIndex = -1
+        for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+            if ($lines[$i] -like "*Test Harness v2.0*") {
+                # Go back one line to catch the preceding border line
+                $startIndex = if ($i -gt 0 -and $lines[$i-1] -like "*====*") { $i - 1 } else { $i }
+                break
+            }
+        }
+
+        if ($startIndex -ge 0) {
+            $filteredLines = $lines[$startIndex..($lines.Count - 1)]
+            $filteredLines | Out-File -FilePath $archiveDest -Encoding Unicode
+        } else {
+            # Fallback to copy the entire file if header is not found
+            Copy-Item -Path $newestLog.FullName -Destination $archiveDest -ErrorAction Stop
+        }
     }
     catch {
-        Exit-WithError "Failed to copy log: $_"
+        Exit-WithError "Failed to process and copy log: $_"
     }
 
     Write-Log "Archived: $archiveName" "SUCCESS"
