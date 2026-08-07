@@ -215,6 +215,43 @@ This is an assumption.
 **Question for client:**
 What are the exact formulas to calculate the score for each of the 5 confidence factors (HH/HL consistency, BOS confirmation, Swing quality, Displacement strength, and EQH/EQL noise)?
 
+
+## Module 004 — CBreakDetector
+
+---
+
+### OPEN-009 — CHoCH applicability to non-trend swing points
+
+**Source:**
+Section 2 & Module 004 Specification.
+
+**The ambiguity:**
+The strategy implies that CHoCH (Change of Character) is a wick-only breach of the protected external swing point (the latest confirmed swing low in a bullish trend, or the latest confirmed swing high in a bearish trend). However, the document does not clarify if CHoCH should be checked or how it behaves when the trend state is transition, ranging, or unknown.
+
+**Current decision:**
+Implemented such that CHoCH is only evaluated when the trend is strictly `TREND_BULLISH` or `TREND_BEARISH`. If the trend is transitional or ranging, CHoCH detection is disabled (returns unconfirmed).
+This is an assumption.
+
+**Question for client:**
+Should CHoCH only be evaluated when the trend is strictly bullish or bearish? If the trend is transitional or ranging, what constitutes the protected swing point, if any?
+
+---
+
+### OPEN-010 — Displacement calculation parameters
+
+**Source:**
+Module 004 Specification.
+
+**The ambiguity:**
+The strategy mentions "displacement" and "ATR multiple" to determine structure break strength but does not provide an exact mathematical definition or configuration parameters for how displacement should be calculated (e.g. body-to-body size ratio, number of expansion candles, or specific ATR ratio).
+
+**Current decision:**
+Mapped the calculated ATR multiple of the breaking candle to the `EStrength` enum (`strength` field of the break struct) to comply with the existing struct without breaking interface changes.
+This is an assumption.
+
+**Question for client:**
+What is the exact formula and parameter set for displacement calculation, and does it require additional fields in the `SStructureBreak` struct?
+
 ---
 
 ## Resolution Process

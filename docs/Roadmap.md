@@ -112,7 +112,7 @@ Tagged: v0.0.3
 
 ---
 
-## Module 004 — CBreakDetector
+## Module 004 — CBreakDetector ✅
 
 Consumes structure. Detects structural breaks.
 
@@ -120,6 +120,9 @@ Produces:
 - BOS (Break of Structure)
 - iBOS (Internal Break of Structure)
 - CHoCH (Change of Character)
+
+Status: Completed. All 87 tests passing.
+Tagged: v0.0.4
 
 ---
 
