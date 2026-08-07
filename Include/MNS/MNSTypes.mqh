@@ -29,6 +29,8 @@
 #ifndef __MNS_TYPES_MQH__
 #define __MNS_TYPES_MQH__
 
+#include "MNSCore.mqh"
+
 //+------------------------------------------------------------------+
 //| Version Information                                              |
 //+------------------------------------------------------------------+
@@ -43,18 +45,6 @@
 //| Constants                                                        |
 //+------------------------------------------------------------------+
 
-/// @brief Sentinel value for an uninitialized or invalid bar index.
-const int MNS_INVALID_INDEX = -1;
-
-/// @brief Sentinel value for an uninitialized or invalid price level.
-///
-/// Uses EMPTY_VALUE (defined by MT5 as DBL_MAX) rather than 0.0,
-/// because 0.0 is a valid price in some contexts and would cause
-/// accidental false-positive comparisons against unset fields.
-const double MNS_INVALID_PRICE = EMPTY_VALUE;
-
-/// @brief Sentinel value for an uninitialized datetime.
-const datetime MNS_INVALID_TIME = 0;
 
 /// @brief Maximum number of swing points the engine retains in memory.
 const int MNS_MAX_SWINGS = 500;

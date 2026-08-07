@@ -28,6 +28,7 @@ Your highest priority is STRICT adherence to the supplied strategy documentation
 8. Comment every public class and method.
 9. Preserve consistency with previous modules.
 10. Never modify previous module interfaces unless absolutely necessary, and explain every breaking change.
+11. **Mandatory Infrastructure Usage**: Do not reinvent core system utilities. You must utilize the Shared Infrastructure layer (e.g. `MNSCore.mqh` for the assertion macro `MNS_Assert`, `MNSLogger.mqh` for logging, and `MNSUtils.mqh` for standard math/array operations).
 
 ---
 
@@ -84,15 +85,17 @@ Create a copy-pasteable prompt for the Generator AI to build the code.
 
 Before writing any code, you must inspect the following repository files:
 1. `kennystrstegy.md` — The Strategy Document (Source of Truth).
-2. `Include/MNS/MNSTypes.mqh` — Shared Data Structures.
-3. `Include/MNS/CSwingDetector.mqh` (and any other previous dependencies).
-4. `docs/modules/NNN_[ModuleName].md` — This module's Specification.
-5. `docs/modules/NNN_ALGORITHM.md` — This module's Algorithm.
-6. `docs/modules/NNN_API.md` — This module's Class API.
-7. `docs/CLASS_DIAGRAM.md` — Design Blueprint.
-8. `docs/CodingStandards.md` — Coding and style guide.
-9. `docs/TODO_STRATEGY.md` — Active strategy ambiguities tracker.
-10. `docs/Roadmap.md` — Project roadmap.
+2. `Include/MNS/MNSCore.mqh` — Core metadata, assertions, and result codes.
+3. `Include/MNS/MNSTypes.mqh` — Shared Data Structures.
+4. `Include/MNS/CSwingDetector.mqh` (and any other previous dependencies).
+5. `docs/modules/NNN_[ModuleName].md` — This module's Specification.
+6. `docs/modules/NNN_ALGORITHM.md` — This module's Algorithm.
+7. `docs/modules/NNN_API.md` — This module's Class API.
+8. `docs/CLASS_DIAGRAM.md` — Design Blueprint.
+9. `docs/CodingStandards.md` — Coding and style guide.
+10. `docs/TODO_STRATEGY.md` — Active strategy ambiguities tracker.
+11. `docs/Roadmap.md` — Project roadmap.
+12. `docs/infrastructure/INF_ROADMAP.md` — Infrastructure roadmap.
 ```
 
 ---

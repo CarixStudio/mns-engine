@@ -27,6 +27,7 @@
 #property version   "2.00"
 #property strict
 
+#include "..\\..\\Include\\MNS\\MNSCore.mqh"
 #include "..\\..\\Include\\MNS\\MNSTypes.mqh"
 #include "..\\..\\Include\\MNS\\CSwingDetector.mqh"
 #include "..\\..\\Include\\MNS\\CStructureEngine.mqh"
@@ -748,6 +749,37 @@ void RunModule004Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module INF-000 — MNSCore validation                              |
+//+------------------------------------------------------------------+
+void RunModuleINF000Tests()
+{
+    Print("--- Module INF-000: MNSCore ---");
+
+    // 1. Validate Sentinel Constants
+    AssertTrue(MNS_INVALID_PRICE == 1.7976931348623157e+308, "MNS_INVALID_PRICE is DBL_MAX");
+    AssertTrue(MNS_INVALID_INDEX == -1, "MNS_INVALID_INDEX is -1");
+    AssertTrue(MNS_INVALID_TIME == 0, "MNS_INVALID_TIME is 0");
+
+    // 2. Validate Result Codes
+    AssertTrue(MNS_S_OK == 0x00000000, "MNS_S_OK is 0x00000000");
+    AssertTrue(MNS_E_FAIL == 0x80004005, "MNS_E_FAIL is 0x80004005");
+    AssertTrue(MNS_E_INVALIDARG == 0x80070057, "MNS_E_INVALIDARG is 0x80070057");
+    AssertTrue(MNS_E_OUTOFMEMORY == 0x8007000E, "MNS_E_OUTOFMEMORY is 0x8007000E");
+    AssertTrue(MNS_E_NOTIMPL == 0x80004001, "MNS_E_NOTIMPL is 0x80004001");
+
+    // 3. Validate MNS_Assert when disabled
+#ifndef MNS_ASSERT_ENABLE
+    // If assertion is disabled, MNS_Assert(false, ...) should do absolutely nothing and not crash or halt.
+    MNS_Assert(false, "This should not trigger because MNS_ASSERT_ENABLE is undefined");
+    AssertTrue(true, "MNS_Assert does not execute when MNS_ASSERT_ENABLE is undefined");
+#else
+    AssertTrue(true, "MNS_ASSERT_ENABLE is defined, skipping disabled assertion check");
+#endif
+
+    Print("--- Module INF-000 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -760,6 +792,10 @@ int OnInit()
     Print("==============================================");
 
     //--- Run all module test suites
+    RunModuleINF000Tests();
+
+    Print("----------------------------------------------");
+
     RunModule001Tests();
 
     Print("----------------------------------------------");

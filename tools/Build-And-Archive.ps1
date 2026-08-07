@@ -393,6 +393,10 @@ function Invoke-WaitForTest {
     Write-Host "  Press ENTER here once the test has completed..." -NoNewline
     $null = Read-Host
     Write-Host ""
+    
+    # Safety delay to allow MT5 to flush buffered log writes to disk
+    Write-Log "Waiting 6 seconds for MetaTrader log buffer to flush..."
+    Start-Sleep -Seconds 6
 
     Write-Log "User confirmed test run complete."
 }

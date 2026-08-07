@@ -19,7 +19,7 @@ These modules are completely independent of trading strategy rules and are prior
 
 | Module ID | Module Name | Status | Target File | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **INF-000** | Core Module | `[ ]` Not Started | `Include/MNS/MNSCore.mqh` | Versioning, assertion macro, shared results. |
+| **INF-000** | Core Module | `[x]` Complete | `Include/MNS/MNSCore.mqh` | Versioning, assertion macro, shared results. |
 | **INF-001** | Logging System | `[ ]` Not Started | `Include/MNS/MNSLogger.mqh` | Compile-time conditional log targets. |
 | **INF-002** | Utility Library | `[ ]` Not Started | `Include/MNS/MNSUtils.mqh` | Array, timezone, and math helper functions. |
 | **INF-003** | ATR Helper | `[ ]` Not Started | `Include/MNS/MNSVolatility.mqh` | Array-based Average True Range metrics. |
