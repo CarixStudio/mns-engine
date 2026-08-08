@@ -1,4 +1,4 @@
-﻿# I n d i c a t o r Module Specification
+# I n d i c a t o r Module Specification
 
 ## 1. Overview
 Specification and contracts for the I n d i c a t o r module in the MNS Trading Engine.

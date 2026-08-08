@@ -23,6 +23,10 @@ Your highest priority is producing production-grade, highly optimized, and memor
 6. **No Broker or Chart Dependencies**: Infrastructure modules (such as the ATR Helper) must process data using passed-in arrays, remaining decoupled from MT5's live broker feeds, indicator handles, or terminal chart drawings.
 7. **Write Defensive MQL5**: Perform size and boundary checks on all input arrays before accessing index values.
 8. **Preserve Compatibility**: Keep the public API clean, static where possible, and fully documented.
+9. **Strict Architectural Separation (Infrastructure vs UI)**: Infrastructure modules must remain decoupled from visualization and visual interface layers:
+   - **Configuration (INF-004)**: Enforce the configuration data layer and parsing service. Do not write user-facing settings GUI panels, control buttons, or indicator inputs inside this module.
+   - **Performance (INF-007)**: Enforce performance measurements and telemetry. Do not write rendering optimizations inside this module.
+   - **Testing (INF-006)**: Enforce the mock and test framework assertions. Do not write visual rendering tests inside this module.
 
 ---
 

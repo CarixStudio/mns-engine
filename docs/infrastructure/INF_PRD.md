@@ -29,7 +29,7 @@ To ensure architectural separation and predictability, all components described 
 ### Out of Scope
 - Trading rules, entry conditions, and exit logic.
 - Trend detection, structural breaks, or pivot calculations.
-- Direct rendering of graphics, dashboard interfaces, or terminal chart alerts (handled in UI Infrastructure).
+- Direct rendering of graphics, dashboard interfaces, or terminal chart alerts (fully consolidated under Module 013 — Indicator Integration and Module 014 — EA Integration).
 
 ---
 

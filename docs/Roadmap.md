@@ -128,9 +128,9 @@ Tagged: v0.0.4
 
 # Shared Infrastructure Layer (Active)
 
-We have paused development of the strategy modules due to outstanding client ambiguities. We are implementing the Shared Infrastructure layer (Phase A) immediately, while UI Infrastructure (Phase B) is deferred.
+We have paused development of the strategy modules due to outstanding client ambiguities. We are implementing the Shared Infrastructure layer immediately. All UI and rendering responsibilities are deferred and fully consolidated under Module 013 and Module 014 to eliminate duplicated architectural ownership.
 
-### Phase A — Core Infrastructure
+### Core Infrastructure Modules
 - [x] **INF-000 — Core Module** (`MNSCore.mqh`) — Success/error codes, global constants, and assertions.
 - [ ] **INF-001 — Logging System** (`MNSLogger.mqh`) — Level-filtered log outputs and target routing.
 - [ ] **INF-002 — Utility Library** (`MNSUtils.mqh`) — Pure math operations, session hours, and array helper functions.
@@ -224,14 +224,39 @@ Produces:
 
 ## Module 013 — CIndicatorIntegration
 
-First time the engine outputs are visible on a chart.
-Connects all engine modules to the rendering layer.
+First time the engine outputs are visible on a chart. Connects all engine modules to the chart rendering layer.
+
+This module is the sole owner of the entire indicator visualization and UI system, consolidating the following responsibilities (with clear separation of concerns from underlying core infrastructure services):
+1. **Renderer Framework**: Abstract drawing interfaces (`IMNSRenderer`).
+2. **Visual Rendering Engine**: Drawing swings, BOS/CHoCH structures, order blocks, FVG, and liquidity zones on the chart.
+3. **Object Manager**: Lifecycle, collision avoidance, and performance pooling of MT5 chart objects.
+4. **Dashboard Framework**: Docked/floating info panel summarizing market trend/phase/session.
+5. **Indicator UI**: Handles user event listeners (`OnChartEvent`) for on-screen interactivity.
+6. **Settings Manager (UI layer)**: Processes user inputs and parameters to manage indicator graphics, built *on top of* the underlying `INF-004 Configuration System` service.
+7. **Rendering/UI Performance Optimization**: Employs incremental redraws and object reuse to minimize CPU load, utilizing telemetry from the underlying `INF-007 Performance Monitor` service to profile UI overhead.
+
+### Responsibilities Mapping & Architecture Separation Table
+
+| Old Phase B UI Infrastructure Responsibility | Reconciled Owner / Architectural Separation |
+| :--- | :--- |
+| **Renderer Framework** | **Module 013 — Indicator Integration** (Visualization abstraction) |
+| **Visual Rendering Engine** | **Module 013 — Indicator Integration** (Drawing implementation) |
+| **Object Manager** | **Module 013 — Indicator Integration** (Object lifetime & pooling) |
+| **Dashboard Framework** | **Module 013 — Indicator Integration** (Visual panel layout) |
+| **Indicator UI** | **Module 013 — Indicator Integration** (Chart event interactions) |
+| **Settings Manager** | **Module 013 — Indicator Integration** (User-facing control UI built on top of **INF-004 Configuration System**) |
+| **Performance Optimization** | **Module 013 — Indicator Integration** (Rendering updates optimized using **INF-007 Performance Monitor** telemetry) |
 
 ---
 
 ## Module 014 — CEAIntegration
 
-Expert Advisor integration and trade execution.
+Expert Advisor integration, order routing, and trade execution.
+
+This module is the sole owner of all EA-specific automation and interactive panels, including:
+1. **EA-Specific Dashboard**: On-chart interactive panel for account stats (Today's profit, daily DD, open trades, spread, session filters).
+2. **EA Controls**: Buttons for Auto-Trading ON/OFF, closing all trades, or pausing execution.
+3. **Execution Pipeline**: Safe order dispatch (market/pending), position tracking (SL/TP, break-even trailing), and money management calculations.
 
 ---
 

@@ -28,7 +28,11 @@ Your highest priority is STRICT adherence to the supplied strategy documentation
 8. Comment every public class and method.
 9. Preserve consistency with previous modules.
 10. Never modify previous module interfaces unless absolutely necessary, and explain every breaking change.
-11. **Mandatory Infrastructure Usage**: Do not reinvent core system utilities. You must utilize the Shared Infrastructure layer (e.g. `MNSCore.mqh` for the assertion macro `MNS_Assert`, `MNSLogger.mqh` for logging, and `MNSUtils.mqh` for standard math/array operations).
+11. **Mandatory Infrastructure Inspection & Reuse**: Do not duplicate core utilities. Always inspect the Shared Infrastructure layer (such as `MNSCore.mqh`, `MNSLogger.mqh`, `MNSUtils.mqh`, `MNSVolatility.mqh`, `MNSConfig.mqh`, `MNSSerializer.mqh`, `MNSTestSuite.mqh`, and `MNSProfiler.mqh`) to see if required features already exist, can be extended, or can be integrated directly rather than writing a duplicate implementation.
+12. **Strict Architectural Separation (Infrastructure vs UI)**: Do not blend low-level infrastructure services with visual/UI layers. Keep the separation clean:
+    - **Configuration**: Use `INF-004 Configuration System` as the underlying configuration/data persistence service; user-facing settings GUI controls (Module 013/014) must be built *on top of* `INF-004`.
+    - **Performance**: Use `INF-007 Performance Monitor` to profile and measure telemetry; UI rendering optimizations (Module 013) must utilize `INF-007` metrics to profile behavior.
+    - **Testing**: Use `INF-006 Testing Framework` for generic mock utilities and unit test assertion macros; actual indicator/UI visual tests must use `INF-006` to execute assertions.
 
 ---
 

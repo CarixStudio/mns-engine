@@ -34,6 +34,7 @@
 #include "..\\..\\Include\\MNS\\CSwingDetector.mqh"
 #include "..\\..\\Include\\MNS\\CStructureEngine.mqh"
 #include "..\\..\\Include\\MNS\\CBreakDetector.mqh"
+#include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 
 //+------------------------------------------------------------------+
 //| Test result tracking                                             |
@@ -840,6 +841,82 @@ void RunModuleINF001Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module INF-002 — MNSUtils validation                            |
+//+------------------------------------------------------------------+
+void RunModuleINF002Tests()
+{
+    Print("--- Module INF-002: MNSUtils ---");
+
+    // 1. Validate IsEqual
+    AssertTrue(CMNSUtils::IsEqual(1.00001, 1.00001), "IsEqual returns true for identical values");
+    AssertTrue(CMNSUtils::IsEqual(1.00001, 1.000015, 0.00001), "IsEqual returns true within epsilon (diff 0.000005 <= 0.00001)");
+    AssertTrue(!CMNSUtils::IsEqual(1.00001, 1.000025, 0.00001), "IsEqual returns false outside epsilon (diff 0.000015 > 0.00001)");
+
+    // 2. Validate RoundToPoints
+    AssertTrue(CMNSUtils::IsEqual(CMNSUtils::RoundToPoints(1.204567, 0.0001), 1.2046), "RoundToPoints(1.204567, 0.0001) rounds to 1.2046");
+    AssertTrue(CMNSUtils::IsEqual(CMNSUtils::RoundToPoints(1.204543, 0.0001), 1.2045), "RoundToPoints(1.204543, 0.0001) rounds to 1.2045");
+    AssertTrue(CMNSUtils::IsEqual(CMNSUtils::RoundToPoints(145.678, 0.01), 145.68), "RoundToPoints(145.678, 0.01) rounds to 145.68");
+    AssertTrue(CMNSUtils::IsEqual(CMNSUtils::RoundToPoints(1.204567, 0.0), 1.204567), "RoundToPoints with 0 pointSize returns price");
+
+    // 3. Validate BrokerTimeToGMT
+    datetime bTime = D'2026.08.08 12:00:00';
+    datetime gmtTime = CMNSUtils::BrokerTimeToGMT(bTime, 3); // GMT+3 broker
+    AssertTrue(gmtTime == D'2026.08.08 09:00:00', "BrokerTimeToGMT converts GMT+3 correctly");
+    
+    datetime gmtTimeNeg = CMNSUtils::BrokerTimeToGMT(bTime, -5); // GMT-5 broker
+    AssertTrue(gmtTimeNeg == D'2026.08.08 17:00:00', "BrokerTimeToGMT converts GMT-5 correctly");
+
+    // 4. Validate IsInSession
+    // 4a. Simple session (start < end) e.g. London (8 to 16)
+    datetime timeLondon = D'2026.08.08 10:30:00'; // Hour 10
+    datetime timeOutLondon = D'2026.08.08 17:00:00'; // Hour 17
+    AssertTrue(CMNSUtils::IsInSession(timeLondon, 8, 16) == true, "IsInSession(10:30, 8, 16) is in session");
+    AssertTrue(CMNSUtils::IsInSession(timeOutLondon, 8, 16) == false, "IsInSession(17:00, 8, 16) is out of session");
+
+    // 4b. Overnight session (start > end) e.g. Tokyo / Midnight spanning (22 to 6)
+    datetime timeTokyoSpanning = D'2026.08.08 23:30:00'; // Hour 23
+    datetime timeTokyoSpanning2 = D'2026.08.08 02:00:00'; // Hour 2
+    datetime timeTokyoSpanningOut = D'2026.08.08 12:00:00'; // Hour 12
+    AssertTrue(CMNSUtils::IsInSession(timeTokyoSpanning, 22, 6) == true, "IsInSession(23:30, 22, 6) spans midnight (before midnight)");
+    AssertTrue(CMNSUtils::IsInSession(timeTokyoSpanning2, 22, 6) == true, "IsInSession(02:00, 22, 6) spans midnight (after midnight)");
+    AssertTrue(CMNSUtils::IsInSession(timeTokyoSpanningOut, 22, 6) == false, "IsInSession(12:00, 22, 6) spans midnight (outside session)");
+
+    // 4c. Single hour session (start == end)
+    AssertTrue(CMNSUtils::IsInSession(timeTokyoSpanningOut, 12, 12) == true, "IsInSession(12:00, 12, 12) matches start==end hour");
+
+    // 5. Validate ArrayCloneDouble
+    double src[5] = {1.1, 2.2, 3.3, 4.4, 5.5};
+    double dstDynamic[];
+    double dstStatic[5];
+    double dstStaticTooSmall[3];
+
+    AssertTrue(CMNSUtils::ArrayCloneDouble(src, dstDynamic) == true, "ArrayCloneDouble into dynamic array succeeds");
+    AssertTrue(ArraySize(dstDynamic) == 5 && dstDynamic[3] == 4.4, "Dynamic dst has correct size and values");
+
+    AssertTrue(CMNSUtils::ArrayCloneDouble(src, dstStatic) == true, "ArrayCloneDouble into static array of same size succeeds");
+    AssertTrue(dstStatic[4] == 5.5, "Static dst has correct values");
+
+    AssertTrue(CMNSUtils::ArrayCloneDouble(src, dstStaticTooSmall) == false, "ArrayCloneDouble into smaller static array fails");
+
+    // 6. Validate ArrayDeleteIndex
+    double arrayDel[];
+    ArrayResize(arrayDel, 5);
+    arrayDel[0] = 10.0; arrayDel[1] = 20.0; arrayDel[2] = 30.0; arrayDel[3] = 40.0; arrayDel[4] = 50.0;
+
+    AssertTrue(CMNSUtils::ArrayDeleteIndex(arrayDel, 2) == true, "ArrayDeleteIndex of middle element returns true");
+    AssertTrue(ArraySize(arrayDel) == 4, "Array size reduced by 1");
+    AssertTrue(arrayDel[0] == 10.0 && arrayDel[1] == 20.0 && arrayDel[2] == 40.0 && arrayDel[3] == 50.0, "Elements shifted correctly");
+
+    AssertTrue(CMNSUtils::ArrayDeleteIndex(arrayDel, -1) == false, "ArrayDeleteIndex with negative index fails");
+    AssertTrue(CMNSUtils::ArrayDeleteIndex(arrayDel, 4) == false, "ArrayDeleteIndex with index >= size fails");
+
+    double staticArray[5];
+    AssertTrue(CMNSUtils::ArrayDeleteIndex(staticArray, 1) == false, "ArrayDeleteIndex on static array fails");
+
+    Print("--- Module INF-002 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -857,6 +934,10 @@ int OnInit()
     Print("----------------------------------------------");
 
     RunModuleINF001Tests();
+
+    Print("----------------------------------------------");
+
+    RunModuleINF002Tests();
 
     Print("----------------------------------------------");
 

@@ -103,9 +103,9 @@ Internal BOS
 
 # Shared Infrastructure Layer (Active)
 
-We have paused development of the strategy modules due to outstanding client ambiguities. We are implementing the Shared Infrastructure layer (Phase A) immediately, while UI Infrastructure (Phase B) is deferred.
+We have paused development of the strategy modules due to outstanding client ambiguities. We are implementing the Shared Infrastructure layer immediately. All UI and rendering responsibilities are deferred and fully consolidated under Module 013 and Module 014 to eliminate duplicated architectural ownership.
 
-### Phase A — Core Infrastructure
+### Core Infrastructure Modules
 - [x] **INF-000 — Core Module** (`MNSCore.mqh`) — Success/error codes, global constants, and assertions.
 - [x] **INF-001 — Logging System** (`MNSLogger.mqh`) — Level-filtered log outputs and target routing.
 - [ ] **INF-002 — Utility Library** (`MNSUtils.mqh`) — Pure math operations, session hours, and array helper functions.
@@ -185,7 +185,7 @@ Calculates trade risk parameters.
 
 Indicator Integration (CIndicatorIntegration)
 
-First time the engine outputs are visible on a chart.
+First time the engine outputs are visible on a chart. Consolidates all visualization, chart rendering, Object Manager, dashboard layout, and user-facing settings UI (built on top of INF-004 Configuration System).
 
 ---
 
@@ -193,9 +193,7 @@ First time the engine outputs are visible on a chart.
 
 EA Integration (CEAIntegration)
 
-Expert Advisor integration and trade execution.
-
-Exactly as your client wanted.
+Expert Advisor integration, order execution, position controls, and interactive EA trading dashboard.
 
 ---
 
