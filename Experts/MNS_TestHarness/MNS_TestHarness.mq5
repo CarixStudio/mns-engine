@@ -36,6 +36,7 @@
 #include "..\\..\\Include\\MNS\\CBreakDetector.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
+#include "..\\..\\Include\\MNS\\MNSConfig.mqh"
 
 //+------------------------------------------------------------------+
 //| Test result tracking                                             |
@@ -987,6 +988,103 @@ void RunModuleINF003Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module INF-004 — MNSConfig validation                            |
+//+------------------------------------------------------------------+
+void RunModuleINF004Tests()
+{
+    Print("--- Module INF-004: MNSConfig ---");
+
+    // 1. Confirm SetDefaults sets correct initial values
+    CMNSConfig::SetDefaults();
+    SEngineConfig active = CMNSConfig::GetActive();
+    
+    AssertTrue(active.externalDepth == 15, "Default externalDepth is 15");
+    AssertTrue(active.internalDepth == 5, "Default internalDepth is 5");
+    AssertTrue(CMNSUtils::IsEqual(active.atrTolerance, 0.0010), "Default atrTolerance is 0.0010");
+    AssertTrue(CMNSUtils::IsEqual(active.minBreakDistance, 0.0000), "Default minBreakDistance is 0.0000");
+    AssertTrue(CMNSUtils::IsEqual(active.confidenceThreshold, 94.0), "Default confidenceThreshold is 94.0");
+    AssertTrue(active.logEnable == true, "Default logEnable is true");
+    AssertTrue(active.logLevel == 1, "Default logLevel is 1 (MNS_LOG_INFO)");
+
+    // 2. Verify UpdateParameter and parameter bounds
+    // Test valid updates
+    AssertTrue(CMNSConfig::UpdateParameter("atrTolerance", 0.0020) == true, "Update atrTolerance to 0.0020 succeeds");
+    AssertTrue(CMNSConfig::UpdateParameter("externalDepth", 20) == true, "Update externalDepth to 20 succeeds");
+    AssertTrue(CMNSConfig::UpdateParameter("internalDepth", 8) == true, "Update internalDepth to 8 succeeds");
+    AssertTrue(CMNSConfig::UpdateParameter("confidenceThreshold", 50.0) == true, "Update confidenceThreshold to 50.0 succeeds");
+    AssertTrue(CMNSConfig::UpdateParameter("logLevel", 3) == true, "Update logLevel to 3 succeeds");
+
+    SEngineConfig updated = CMNSConfig::GetActive();
+    AssertTrue(CMNSUtils::IsEqual(updated.atrTolerance, 0.0020), "Active atrTolerance updated to 0.0020");
+    AssertTrue(updated.externalDepth == 20, "Active externalDepth updated to 20");
+    AssertTrue(updated.internalDepth == 8, "Active internalDepth updated to 8");
+    AssertTrue(CMNSUtils::IsEqual(updated.confidenceThreshold, 50.0), "Active confidenceThreshold updated to 50.0");
+    AssertTrue(updated.logLevel == 3, "Active logLevel updated to 3");
+
+    // Test invalid updates (rejections)
+    AssertTrue(CMNSConfig::UpdateParameter("externalDepth", 5) == false, "Rejects externalDepth (5) because it is < internalDepth (8)");
+    AssertTrue(CMNSConfig::UpdateParameter("externalDepth", -2) == false, "Rejects negative externalDepth");
+    AssertTrue(CMNSConfig::UpdateParameter("internalDepth", 25) == false, "Rejects internalDepth (25) because it is > externalDepth (20)");
+    AssertTrue(CMNSConfig::UpdateParameter("internalDepth", 0) == false, "Rejects zero internalDepth");
+    AssertTrue(CMNSConfig::UpdateParameter("atrTolerance", -0.0001) == false, "Rejects negative atrTolerance");
+    AssertTrue(CMNSConfig::UpdateParameter("minBreakDistance", -0.0001) == false, "Rejects negative minBreakDistance");
+    AssertTrue(CMNSConfig::UpdateParameter("confidenceThreshold", 101.0) == false, "Rejects confidenceThreshold > 100.0");
+    AssertTrue(CMNSConfig::UpdateParameter("confidenceThreshold", -1.0) == false, "Rejects negative confidenceThreshold");
+    AssertTrue(CMNSConfig::UpdateParameter("logLevel", 5) == false, "Rejects logLevel > 4");
+    AssertTrue(CMNSConfig::UpdateParameter("logLevel", -1) == false, "Rejects negative logLevel");
+    AssertTrue(CMNSConfig::UpdateParameter("unknownKey", 123.0) == false, "Rejects unknown parameters");
+
+    // Verify parameters remained unchanged after rejections
+    SEngineConfig verified = CMNSConfig::GetActive();
+    AssertTrue(verified.externalDepth == 20, "externalDepth unchanged after rejections");
+    AssertTrue(verified.internalDepth == 8, "internalDepth unchanged after rejections");
+    AssertTrue(verified.logLevel == 3, "logLevel unchanged after rejections");
+
+    // 3. Load from File verification
+    string testFileName = "MNS_Settings_Harness_Test.ini";
+    int fileHandle = FileOpen(testFileName, FILE_WRITE | FILE_TXT | FILE_ANSI);
+    if (fileHandle != INVALID_HANDLE)
+    {
+        FileWrite(fileHandle, "; MNS Test Settings file");
+        FileWrite(fileHandle, "# Another comment style");
+        FileWrite(fileHandle, "externalDepth=30");
+        FileWrite(fileHandle, "internalDepth=10");
+        FileWrite(fileHandle, "atrTolerance = 0.0015");
+        FileWrite(fileHandle, "minBreakDistance= 0.0002");
+        FileWrite(fileHandle, "confidenceThreshold =88.5");
+        FileWrite(fileHandle, "logEnable = 0.0");
+        FileWrite(fileHandle, "logLevel=2");
+        FileWrite(fileHandle, "invalid_key=999"); // Graceful check
+        FileClose(fileHandle);
+
+        bool loadResult = CMNSConfig::LoadFromFile(testFileName);
+        // Will return false because of 'invalid_key', but should fail gracefully and load valid keys
+        AssertTrue(loadResult == false, "LoadFromFile returns false when invalid keys exist but completes parsing");
+
+        SEngineConfig loaded = CMNSConfig::GetActive();
+        AssertTrue(loaded.externalDepth == 30, "LoadFromFile successfully parsed externalDepth = 30");
+        AssertTrue(loaded.internalDepth == 10, "LoadFromFile successfully parsed internalDepth = 10");
+        AssertTrue(CMNSUtils::IsEqual(loaded.atrTolerance, 0.0015), "LoadFromFile successfully parsed atrTolerance = 0.0015");
+        AssertTrue(CMNSUtils::IsEqual(loaded.minBreakDistance, 0.0002), "LoadFromFile successfully parsed minBreakDistance = 0.0002");
+        AssertTrue(CMNSUtils::IsEqual(loaded.confidenceThreshold, 88.5), "LoadFromFile successfully parsed confidenceThreshold = 88.5");
+        AssertTrue(loaded.logEnable == false, "LoadFromFile successfully parsed logEnable = false");
+        AssertTrue(loaded.logLevel == 2, "LoadFromFile successfully parsed logLevel = 2");
+
+        // Clean up settings file
+        FileDelete(testFileName);
+    }
+    else
+    {
+        AssertTrue(false, "Failed to create mock config file for testing");
+    }
+
+    // 4. Test loading non-existent file returns false cleanly
+    AssertTrue(CMNSConfig::LoadFromFile("non_existent_settings_file.ini") == false, "LoadFromFile returns false for missing files");
+
+    Print("--- Module INF-004 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -1012,6 +1110,10 @@ int OnInit()
     Print("----------------------------------------------");
 
     RunModuleINF003Tests();
+
+    Print("----------------------------------------------");
+
+    RunModuleINF004Tests();
 
     Print("----------------------------------------------");
 

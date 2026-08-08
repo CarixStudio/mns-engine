@@ -24,8 +24,8 @@ These modules are completely independent of trading strategy rules and are prior
 | **INF-000** | Core Module | `[x]` Complete | `Include/MNS/MNSCore.mqh` | Versioning, assertion macro, shared results. |
 | **INF-001** | Logging System | `[x]` Complete | `Include/MNS/MNSLogger.mqh` | Compile-time conditional log targets. |
 | **INF-002** | Utility Library | `[x]` Complete | `Include/MNS/MNSUtils.mqh` | Array, timezone, and math helper functions. |
-| **INF-003** | ATR Helper | `[/]` In Progress | `Include/MNS/MNSVolatility.mqh` | Array-based Average True Range metrics. |
-| **INF-004** | Configuration System | `[ ]` Not Started | `Include/MNS/MNSConfig.mqh` | Parsing runtime profiles and input variables. |
+| **INF-003** | ATR Helper | `[x]` Complete | `Include/MNS/MNSVolatility.mqh` | Array-based Average True Range metrics. |
+| **INF-004** | Configuration System | `[/]` In Progress | `Include/MNS/MNSConfig.mqh` | Parsing runtime profiles and input variables. |
 | **INF-005** | Serialization | `[ ]` Not Started | `Include/MNS/MNSSerializer.mqh` | Interfaces for state restoration. |
 | **INF-006** | Testing Framework | `[ ]` Not Started | `Include/MNS/MNSTestSuite.mqh` | Unit test execution macros and mock structures. |
 | **INF-007** | Performance Monitor | `[ ]` Not Started | `Include/MNS/MNSProfiler.mqh` | Telemetry profiling and microsecond metrics. |
