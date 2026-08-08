@@ -136,8 +136,8 @@ We have paused development of the strategy modules due to outstanding client amb
 - [x] **INF-002 — Utility Library** (`MNSUtils.mqh`) — Pure math operations, session hours, and array helper functions.
 - [x] **INF-003 — ATR Helper** (`MNSVolatility.mqh`) — Volatility calculations operating directly on price arrays.
 - [x] **INF-004 — Configuration System** (`MNSConfig.mqh`) — Settings profiles and input validation boundaries.
-- [/] **INF-005 — Serialization** (`MNSSerializer.mqh`) — Standard interfaces for object archiving to disk.
-- [ ] **INF-006 — Testing Framework** (`MNSTestSuite.mqh`) — Testing assertions and mock structures.
+- [x] **INF-005 — Serialization** (`MNSSerializer.mqh`) — Standard interfaces for object archiving to disk.
+- [/] **INF-006 — Testing Framework** (`MNSTestSuite.mqh`) — Testing assertions and mock structures.
 - [ ] **INF-007 — Performance Monitor** (`MNSProfiler.mqh`) — Telemetry profiling and microsecond metrics.
 
 ---

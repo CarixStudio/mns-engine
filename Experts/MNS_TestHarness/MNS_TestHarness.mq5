@@ -38,6 +38,7 @@
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
 #include "..\\..\\Include\\MNS\\MNSSerializer.mqh"
+#include "..\\..\\Include\\MNS\\MNSTestSuite.mqh"
 
 //+------------------------------------------------------------------+
 //| Test result tracking                                             |
@@ -1209,6 +1210,42 @@ void RunModuleINF005Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module INF-006 — MNSTestSuite validation                         |
+//+------------------------------------------------------------------+
+void RunModuleINF006Tests()
+{
+    Print("--- Module INF-006: MNSTestSuite ---");
+
+    // 1. Reset and check initial state
+    CMNSTestSuite::Reset();
+    AssertTrue(CMNSTestSuite::GetFailedCount() == 0, "GetFailedCount is 0 after Reset");
+
+    // 2. Test successful assertions
+    CMNSTestSuite::AssertTrue(true, "TestSuite AssertTrue Pass");
+    CMNSTestSuite::AssertEqualInt(10, 10, "TestSuite AssertEqualInt Pass");
+    CMNSTestSuite::AssertEqualDouble(1.23456, 1.234565, "TestSuite AssertEqualDouble Pass", 0.00001);
+
+    AssertTrue(CMNSTestSuite::GetFailedCount() == 0, "No failures after successful assertions");
+
+    // 3. Test failing assertions. Since these will print [FAIL] in the log, they are expected failures of the test suite itself.
+    Print("  [INFO] The following 3 [FAIL] logs are EXPECTED as part of INF-006 verification:");
+    CMNSTestSuite::AssertTrue(false, "TestSuite AssertTrue Fail");
+    CMNSTestSuite::AssertEqualInt(10, 20, "TestSuite AssertEqualInt Fail");
+    CMNSTestSuite::AssertEqualDouble(1.23456, 1.23458, "TestSuite AssertEqualDouble Fail", 0.00001);
+
+    AssertTrue(CMNSTestSuite::GetFailedCount() == 3, "GetFailedCount returns 3 after 3 failures");
+
+    // 4. Test ReportResults
+    CMNSTestSuite::ReportResults("INF-006 Mock Module");
+
+    // Reset again to leave it clean
+    CMNSTestSuite::Reset();
+    AssertTrue(CMNSTestSuite::GetFailedCount() == 0, "GetFailedCount reset to 0");
+
+    Print("--- Module INF-006 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -1242,6 +1279,10 @@ int OnInit()
     Print("----------------------------------------------");
 
     RunModuleINF005Tests();
+
+    Print("----------------------------------------------");
+
+    RunModuleINF006Tests();
 
     Print("----------------------------------------------");
 
