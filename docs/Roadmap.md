@@ -132,9 +132,9 @@ We have paused development of the strategy modules due to outstanding client amb
 
 ### Core Infrastructure Modules
 - [x] **INF-000 — Core Module** (`MNSCore.mqh`) — Success/error codes, global constants, and assertions.
-- [ ] **INF-001 — Logging System** (`MNSLogger.mqh`) — Level-filtered log outputs and target routing.
-- [ ] **INF-002 — Utility Library** (`MNSUtils.mqh`) — Pure math operations, session hours, and array helper functions.
-- [ ] **INF-003 — ATR Helper** (`MNSVolatility.mqh`) — Volatility calculations operating directly on price arrays.
+- [x] **INF-001 — Logging System** (`MNSLogger.mqh`) — Level-filtered log outputs and target routing.
+- [x] **INF-002 — Utility Library** (`MNSUtils.mqh`) — Pure math operations, session hours, and array helper functions.
+- [/] **INF-003 — ATR Helper** (`MNSVolatility.mqh`) — Volatility calculations operating directly on price arrays.
 - [ ] **INF-004 — Configuration System** (`MNSConfig.mqh`) — Settings profiles and input validation boundaries.
 - [ ] **INF-005 — Serialization** (`MNSSerializer.mqh`) — Standard interfaces for object archiving to disk.
 - [ ] **INF-006 — Testing Framework** (`MNSTestSuite.mqh`) — Testing assertions and mock structures.

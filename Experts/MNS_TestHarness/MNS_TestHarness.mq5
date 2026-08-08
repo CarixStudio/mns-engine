@@ -35,6 +35,7 @@
 #include "..\\..\\Include\\MNS\\CStructureEngine.mqh"
 #include "..\\..\\Include\\MNS\\CBreakDetector.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
+#include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 
 //+------------------------------------------------------------------+
 //| Test result tracking                                             |
@@ -917,6 +918,75 @@ void RunModuleINF002Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module INF-003 — MNSVolatility validation                       |
+//+------------------------------------------------------------------+
+void RunModuleINF003Tests()
+{
+    Print("--- Module INF-003: MNSVolatility ---");
+
+    // 1. Validation failure: ratesTotal < period + 1
+    double hSmall[5] = {1.2010, 1.2020, 1.2015, 1.2030, 1.2025};
+    double lSmall[5] = {1.1990, 1.2000, 1.1995, 1.2010, 1.2005};
+    double cSmall[5] = {1.2000, 1.2010, 1.2005, 1.2020, 1.2015};
+    
+    double val1 = CMNSVolatility::CalculateATR(hSmall, lSmall, cSmall, 4, 14, 5);
+    AssertTrue(val1 == 0.0, "CalculateATR returns 0.0 when ratesTotal < period + 1");
+
+    // 2. Validation failure: index out of bounds
+    double val2 = CMNSVolatility::CalculateATR(hSmall, lSmall, cSmall, 5, 3, 5);
+    AssertTrue(val2 == 0.0, "CalculateATR returns 0.0 when index is out of bounds (index == ratesTotal)");
+    double val3 = CMNSVolatility::CalculateATR(hSmall, lSmall, cSmall, -1, 3, 5);
+    AssertTrue(val3 == 0.0, "CalculateATR returns 0.0 when index is negative");
+
+    // 3. Exact ATR verification: All candles have identical range and Close == Low.
+    #define TEST_ATR_SIZE 20
+    double hTest[TEST_ATR_SIZE];
+    double lTest[TEST_ATR_SIZE];
+    double cTest[TEST_ATR_SIZE];
+    
+    for (int i = 0; i < TEST_ATR_SIZE; i++)
+    {
+        hTest[i] = 1.0010;
+        lTest[i] = 1.0000;
+        cTest[i] = 1.0000;
+    }
+    
+    // Test standard array direction (AsSeries = false)
+    double atrStd = CMNSVolatility::CalculateATR(hTest, lTest, cTest, 10, 5, TEST_ATR_SIZE);
+    AssertTrue(CMNSUtils::IsEqual(atrStd, 0.0010), "CalculateATR on standard array yields correct ATR (0.0010)");
+
+    // Test timeseries array direction (AsSeries = true)
+    ArraySetAsSeries(hTest, true);
+    ArraySetAsSeries(lTest, true);
+    ArraySetAsSeries(cTest, true);
+    
+    double atrSeries = CMNSVolatility::CalculateATR(hTest, lTest, cTest, 9, 5, TEST_ATR_SIZE);
+    AssertTrue(CMNSUtils::IsEqual(atrSeries, 0.0010), "CalculateATR on timeseries array yields correct ATR (0.0010)");
+
+    // Restore series property to avoid side-effects
+    ArraySetAsSeries(hTest, false);
+    ArraySetAsSeries(lTest, false);
+    ArraySetAsSeries(cTest, false);
+
+    // 4. Mathematical test: Wilder's smoothing recursion check.
+    double hWilder[6] = {10.0, 12.0, 15.0, 11.0, 14.0, 16.0};
+    double lWilder[6] = {5.0, 7.0, 9.0, 8.0, 10.0, 11.0};
+    double cWilder[6] = {6.0, 8.0, 10.0, 9.0, 12.0, 13.0};
+    
+    double atrWilder3 = CMNSVolatility::CalculateATR(hWilder, lWilder, cWilder, 3, 3, 6);
+    double atrWilder4 = CMNSVolatility::CalculateATR(hWilder, lWilder, cWilder, 4, 3, 6);
+    double atrWilder5 = CMNSVolatility::CalculateATR(hWilder, lWilder, cWilder, 5, 3, 6);
+    
+    AssertTrue(CMNSUtils::IsEqual(atrWilder3, 16.0 / 3.0), "Wilder's ATR at index 3 (initial SMA) is correct");
+    AssertTrue(CMNSUtils::IsEqual(atrWilder4, 47.0 / 9.0), "Wilder's ATR at index 4 (first smoothed) is correct");
+    AssertTrue(CMNSUtils::IsEqual(atrWilder5, 139.0 / 27.0), "Wilder's ATR at index 5 (second smoothed) is correct");
+
+    #undef TEST_ATR_SIZE
+
+    Print("--- Module INF-003 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -938,6 +1008,10 @@ int OnInit()
     Print("----------------------------------------------");
 
     RunModuleINF002Tests();
+
+    Print("----------------------------------------------");
+
+    RunModuleINF003Tests();
 
     Print("----------------------------------------------");
 
