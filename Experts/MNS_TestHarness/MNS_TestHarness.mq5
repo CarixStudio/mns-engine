@@ -39,6 +39,8 @@
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
 #include "..\\..\\Include\\MNS\\MNSSerializer.mqh"
 #include "..\\..\\Include\\MNS\\MNSTestSuite.mqh"
+#define MNS_PROFILING_ENABLE
+#include "..\\..\\Include\\MNS\\MNSProfiler.mqh"
 
 //+------------------------------------------------------------------+
 //| Test result tracking                                             |
@@ -1246,6 +1248,59 @@ void RunModuleINF006Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module INF-007 — MNSProfiler validation                          |
+//+------------------------------------------------------------------+
+void RunModuleINF007Tests()
+{
+    Print("--- Module INF-007: MNSProfiler ---");
+
+    CMNSProfiler::Reset();
+
+    // 1. Basic Start and Stop measuring
+    string testSec = "Test_Sleep_Block";
+    
+    // Warm up the section registration
+    MNS_ProfileStart(testSec);
+    MNS_ProfileStop(testSec);
+    
+    ulong callsBefore = CMNSProfiler::GetCallCount(testSec);
+    AssertTrue(callsBefore == 1, "Profiler section registered with 1 call");
+
+    // Sleep 10ms to verify duration
+    MNS_ProfileStart(testSec);
+    Sleep(10);
+    MNS_ProfileStop(testSec);
+
+    ulong totalTime = CMNSProfiler::GetTotalTimeUs(testSec);
+    ulong callsAfter = CMNSProfiler::GetCallCount(testSec);
+
+    AssertTrue(callsAfter == 2, "Call count incremented to 2");
+    AssertTrue(totalTime >= 10000, "Recorded time is >= 10,000 microseconds (10ms Sleep)");
+
+    // 2. Validate nested profiling
+    string nestedOuter = "Nested_Outer";
+    string nestedInner = "Nested_Inner";
+
+    MNS_ProfileStart(nestedOuter);
+    Sleep(5);
+    MNS_ProfileStart(nestedInner);
+    Sleep(5);
+    MNS_ProfileStop(nestedInner);
+    MNS_ProfileStop(nestedOuter);
+
+    AssertTrue(CMNSProfiler::GetCallCount(nestedOuter) == 1, "Outer call count is 1");
+    AssertTrue(CMNSProfiler::GetCallCount(nestedInner) == 1, "Inner call count is 1");
+    AssertTrue(CMNSProfiler::GetTotalTimeUs(nestedOuter) >= 10000, "Outer time spans both sleep calls (>= 10ms)");
+    AssertTrue(CMNSProfiler::GetTotalTimeUs(nestedInner) >= 5000, "Inner time spans inner sleep call (>= 5ms)");
+
+    // 3. Print telemetry log block
+    CMNSProfiler::ReportTelemetry();
+
+    CMNSProfiler::Reset();
+    Print("--- Module INF-007 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -1283,6 +1338,10 @@ int OnInit()
     Print("----------------------------------------------");
 
     RunModuleINF006Tests();
+
+    Print("----------------------------------------------");
+
+    RunModuleINF007Tests();
 
     Print("----------------------------------------------");
 
