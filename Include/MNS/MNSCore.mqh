@@ -37,19 +37,19 @@
 #define MNS_RESULT int
 
 /// @brief Success code indicating normal operation.
-#define MNS_S_OK             0x00000000
+#define MNS_S_OK             ((MNS_RESULT)0x00000000)
 
 /// @brief Generic error code indicating execution failure.
-#define MNS_E_FAIL           0x80004005
+#define MNS_E_FAIL           ((MNS_RESULT)0x80004005)
 
 /// @brief Error code indicating one or more invalid arguments.
-#define MNS_E_INVALIDARG     0x80070057
+#define MNS_E_INVALIDARG     ((MNS_RESULT)0x80070057)
 
 /// @brief Error code indicating memory allocation or array resize failure.
-#define MNS_E_OUTOFMEMORY    0x8007000E
+#define MNS_E_OUTOFMEMORY    ((MNS_RESULT)0x8007000E)
 
 /// @brief Error code indicating that the called method is not implemented.
-#define MNS_E_NOTIMPL        0x80004001
+#define MNS_E_NOTIMPL        ((MNS_RESULT)0x80004001)
 
 //+------------------------------------------------------------------+
 //| Global Constants                                                 |

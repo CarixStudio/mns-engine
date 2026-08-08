@@ -37,6 +37,7 @@
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
+#include "..\\..\\Include\\MNS\\MNSSerializer.mqh"
 
 //+------------------------------------------------------------------+
 //| Test result tracking                                             |
@@ -1085,6 +1086,129 @@ void RunModuleINF004Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Mock Serializable Class for Testing INF-005                      |
+//+------------------------------------------------------------------+
+class CMockSerializable : public IMNSSerializable
+{
+public:
+    int    m_valInt;
+    double m_valDouble;
+    bool   m_valBool;
+    
+    CMockSerializable() : m_valInt(0), m_valDouble(0.0), m_valBool(false) {}
+    CMockSerializable(int valInt, double valDouble, bool valBool) 
+        : m_valInt(valInt), m_valDouble(valDouble), m_valBool(valBool) {}
+        
+    virtual MNS_RESULT Serialize(int fileHandle) override
+    {
+        if (fileHandle == INVALID_HANDLE)
+            return MNS_E_INVALIDARG;
+            
+        uint bytesWritten = 0;
+        bytesWritten += FileWriteInteger(fileHandle, m_valInt);
+        bytesWritten += FileWriteDouble(fileHandle, m_valDouble);
+        bytesWritten += FileWriteInteger(fileHandle, m_valBool ? 1 : 0);
+        
+        if (bytesWritten != 16)
+            return MNS_E_FAIL;
+            
+        return MNS_S_OK;
+    }
+    
+    virtual MNS_RESULT Deserialize(int fileHandle) override
+    {
+        if (fileHandle == INVALID_HANDLE)
+            return MNS_E_INVALIDARG;
+            
+        long remaining = FileSize(fileHandle) - FileTell(fileHandle);
+        if (remaining < 16)
+            return MNS_E_FAIL;
+            
+        m_valInt = FileReadInteger(fileHandle);
+        m_valDouble = FileReadDouble(fileHandle);
+        int boolVal = FileReadInteger(fileHandle);
+        m_valBool = (boolVal != 0);
+        
+        return MNS_S_OK;
+    }
+};
+
+//+------------------------------------------------------------------+
+//| Module INF-005 — MNSSerializer validation                       |
+//+------------------------------------------------------------------+
+void RunModuleINF005Tests()
+{
+    Print("--- Module INF-005: MNSSerializer ---");
+
+    string testFile = "MNS_Serializer_Harness_Test.bin";
+
+    // 1. Validate happy-path: Serialize and Deserialize matches
+    CMockSerializable mockWrite(101, 1234.5678, true);
+    
+    int fileHandle = FileOpen(testFile, FILE_WRITE | FILE_BIN);
+    AssertTrue(fileHandle != INVALID_HANDLE, "Created binary file for serialization");
+    
+    if (fileHandle != INVALID_HANDLE)
+    {
+        MNS_RESULT res = mockWrite.Serialize(fileHandle);
+        AssertTrue(res == MNS_S_OK, "Serialize returns MNS_S_OK");
+        FileClose(fileHandle);
+    }
+    
+    CMockSerializable mockRead;
+    fileHandle = FileOpen(testFile, FILE_READ | FILE_BIN);
+    AssertTrue(fileHandle != INVALID_HANDLE, "Opened binary file for deserialization");
+    
+    if (fileHandle != INVALID_HANDLE)
+    {
+        MNS_RESULT res = mockRead.Deserialize(fileHandle);
+        AssertTrue(res == MNS_S_OK, "Deserialize returns MNS_S_OK");
+        FileClose(fileHandle);
+    }
+    
+    // Verify properties match
+    AssertTrue(mockRead.m_valInt == 101, "Deserialized integer matches (101)");
+    AssertTrue(CMNSUtils::IsEqual(mockRead.m_valDouble, 1234.5678), "Deserialized double matches (1234.5678)");
+    AssertTrue(mockRead.m_valBool == true, "Deserialized boolean matches (true)");
+    
+    // Clean up
+    FileDelete(testFile);
+
+    // 2. Validate corrupt/incomplete file handling (returns MNS_E_FAIL)
+    string corruptFile = "MNS_Serializer_Corrupt_Test.bin";
+    fileHandle = FileOpen(corruptFile, FILE_WRITE | FILE_BIN);
+    AssertTrue(fileHandle != INVALID_HANDLE, "Created binary file for corrupt test");
+    if (fileHandle != INVALID_HANDLE)
+    {
+        // Write only 4 bytes (int) instead of the full 16 bytes
+        FileWriteInteger(fileHandle, 999);
+        FileClose(fileHandle);
+    }
+    
+    CMockSerializable mockCorrupt;
+    fileHandle = FileOpen(corruptFile, FILE_READ | FILE_BIN);
+    AssertTrue(fileHandle != INVALID_HANDLE, "Opened binary file for corrupt reading");
+    if (fileHandle != INVALID_HANDLE)
+    {
+        long sz = FileSize(fileHandle);
+        Print("  [INFO] Diagnostic: corrupt file size = ", sz);
+        MNS_RESULT res = mockCorrupt.Deserialize(fileHandle);
+        Print("  [INFO] Diagnostic: Deserialize result = 0x", IntegerToString(res, 8, '0'));
+        AssertTrue(res == MNS_E_FAIL, "Deserialize returns MNS_E_FAIL for incomplete file");
+        FileClose(fileHandle);
+    }
+    
+    FileDelete(corruptFile);
+
+    // 3. Validate invalid file handle handling (returns MNS_E_INVALIDARG)
+    CMockSerializable mockInvalid;
+    AssertTrue(mockInvalid.Serialize(INVALID_HANDLE) == MNS_E_INVALIDARG, "Serialize with INVALID_HANDLE returns MNS_E_INVALIDARG");
+    AssertTrue(mockInvalid.Deserialize(INVALID_HANDLE) == MNS_E_INVALIDARG, "Deserialize with INVALID_HANDLE returns MNS_E_INVALIDARG");
+
+    Print("--- Module INF-005 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -1114,6 +1238,10 @@ int OnInit()
     Print("----------------------------------------------");
 
     RunModuleINF004Tests();
+
+    Print("----------------------------------------------");
+
+    RunModuleINF005Tests();
 
     Print("----------------------------------------------");
 
