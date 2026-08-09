@@ -29,6 +29,7 @@
 #include "MNSTypes.mqh"
 #include "CSwingDetector.mqh"
 #include "CStructureEngine.mqh"
+#include "MNSConfig.mqh"
 
 class CBreakDetector
 {
@@ -48,6 +49,7 @@ private:
     bool IsBreakAlreadyRecorded(datetime swingTime, EStructureBreak type) const;
     void RecordBreak(int barIndex, double price, datetime time, EStructureBreak breakType, EStrength strength, const SSwingPoint &brokenSwing);
     bool EvaluateBarForBreaks(int index, const CSwingDetector &swingDetector, const CStructureEngine &structureEngine, const double &high[], const double &low[], const double &close[], const double &open[], const datetime &time[], int ratesTotal, double currentAtr);
+    EStrength CalculateBreakStrength(double highVal, double lowVal, double openVal, double closeVal, double atrVal, bool isBullish) const;
 
 public:
     //+------------------------------------------------------------------+
@@ -223,38 +225,28 @@ bool CBreakDetector::EvaluateBarForBreaks(int index,
             break;
     }
 
-    // Bullish External BOS (body closes above previous external high)
-    if (latestExtHigh.isConfirmed && close[index] > latestExtHigh.price)
+    double minBreakDistance = MathMax(2.0 * _Point, 0.10 * currentAtr);
+
+    // Bullish External BOS (body closes above previous external high + break distance)
+    if (latestExtHigh.isConfirmed && close[index] > latestExtHigh.price + minBreakDistance)
     {
         if (!IsBreakAlreadyRecorded(latestExtHigh.time, BREAK_BOS))
         {
-            // Calculate Strength
-            // TODO: OPEN-010 - Check displacement calculation parameters
-            double candleRange = high[index] - low[index];
-            double atrMultiple = (currentAtr > 0.0) ? (candleRange / currentAtr) : 0.0;
-            EStrength strength = STRENGTH_WEAK;
-            if (atrMultiple >= 2.0)
-                strength = STRENGTH_STRONG;
-            else if (atrMultiple >= 1.0)
-                strength = STRENGTH_AVERAGE;
+            // Calculate displacement-aware break strength (OPEN-010)
+            EStrength strength = CalculateBreakStrength(high[index], low[index], open[index], close[index], currentAtr, true);
 
             RecordBreak(index, latestExtHigh.price, time[index], BREAK_BOS, strength, latestExtHigh);
             confirmed = true;
         }
     }
 
-    // Bearish External BOS (body closes below previous external low)
-    if (latestExtLow.isConfirmed && close[index] < latestExtLow.price)
+    // Bearish External BOS (body closes below previous external low - break distance)
+    if (latestExtLow.isConfirmed && close[index] < latestExtLow.price - minBreakDistance)
     {
         if (!IsBreakAlreadyRecorded(latestExtLow.time, BREAK_BOS))
         {
-            double candleRange = high[index] - low[index];
-            double atrMultiple = (currentAtr > 0.0) ? (candleRange / currentAtr) : 0.0;
-            EStrength strength = STRENGTH_WEAK;
-            if (atrMultiple >= 2.0)
-                strength = STRENGTH_STRONG;
-            else if (atrMultiple >= 1.0)
-                strength = STRENGTH_AVERAGE;
+            // Calculate displacement-aware break strength (OPEN-010)
+            EStrength strength = CalculateBreakStrength(high[index], low[index], open[index], close[index], currentAtr, false);
 
             RecordBreak(index, latestExtLow.price, time[index], BREAK_BOS, strength, latestExtLow);
             confirmed = true;
@@ -283,17 +275,12 @@ bool CBreakDetector::EvaluateBarForBreaks(int index,
     }
 
     // Bullish Internal BOS
-    if (latestIntHigh.isConfirmed && close[index] > latestIntHigh.price)
+    if (latestIntHigh.isConfirmed && close[index] > latestIntHigh.price + minBreakDistance)
     {
         if (!IsBreakAlreadyRecorded(latestIntHigh.time, BREAK_INTERNAL_BOS))
         {
-            double candleRange = high[index] - low[index];
-            double atrMultiple = (currentAtr > 0.0) ? (candleRange / currentAtr) : 0.0;
-            EStrength strength = STRENGTH_WEAK;
-            if (atrMultiple >= 2.0)
-                strength = STRENGTH_STRONG;
-            else if (atrMultiple >= 1.0)
-                strength = STRENGTH_AVERAGE;
+            // Calculate displacement-aware break strength (OPEN-010)
+            EStrength strength = CalculateBreakStrength(high[index], low[index], open[index], close[index], currentAtr, true);
 
             RecordBreak(index, latestIntHigh.price, time[index], BREAK_INTERNAL_BOS, strength, latestIntHigh);
             confirmed = true;
@@ -301,17 +288,12 @@ bool CBreakDetector::EvaluateBarForBreaks(int index,
     }
 
     // Bearish Internal BOS
-    if (latestIntLow.isConfirmed && close[index] < latestIntLow.price)
+    if (latestIntLow.isConfirmed && close[index] < latestIntLow.price - minBreakDistance)
     {
         if (!IsBreakAlreadyRecorded(latestIntLow.time, BREAK_INTERNAL_BOS))
         {
-            double candleRange = high[index] - low[index];
-            double atrMultiple = (currentAtr > 0.0) ? (candleRange / currentAtr) : 0.0;
-            EStrength strength = STRENGTH_WEAK;
-            if (atrMultiple >= 2.0)
-                strength = STRENGTH_STRONG;
-            else if (atrMultiple >= 1.0)
-                strength = STRENGTH_AVERAGE;
+            // Calculate displacement-aware break strength (OPEN-010)
+            EStrength strength = CalculateBreakStrength(high[index], low[index], open[index], close[index], currentAtr, false);
 
             RecordBreak(index, latestIntLow.price, time[index], BREAK_INTERNAL_BOS, strength, latestIntLow);
             confirmed = true;
@@ -319,26 +301,41 @@ bool CBreakDetector::EvaluateBarForBreaks(int index,
     }
 
     //--- 3. Detect Change of Character (CHoCH)
-    // TODO: OPEN-009 - Verify if CHoCH should apply to non-trend swing points
     ETrend trend = structureEngine.GetState().trend;
 
-    if (trend == TREND_BULLISH)
+    // Determine CHoCH applicability based on prior directional condition (Section 1.8)
+    bool checkBearishChoch = (trend == TREND_BULLISH);
+    bool checkBullishChoch  = (trend == TREND_BEARISH);
+
+    if (trend == TREND_TRANSITION)
+    {
+        // In transition, check the relative age of the latest external swing high/low 
+        // to determine if we are in a Bullish Transition or Bearish Transition
+        if (latestExtLow.isConfirmed && latestExtHigh.isConfirmed)
+        {
+            if (latestExtLow.barIndex > latestExtHigh.barIndex) // High is newer (Bearish Transition origin)
+            {
+                checkBearishChoch = true;
+            }
+            else // Low is newer (Bullish Transition origin)
+            {
+                checkBullishChoch = true;
+            }
+        }
+    }
+
+    if (checkBearishChoch)
     {
         // Protected swing is the latest confirmed External Swing Low
         if (latestExtLow.isConfirmed)
         {
-            // Wick goes below protected swing low, but body does not close below it
-            if (low[index] < latestExtLow.price && close[index] >= latestExtLow.price)
+            // Bearish CHoCH: body closes below protected swing low - minBreakDistance
+            if (close[index] < latestExtLow.price - minBreakDistance)
             {
                 if (!IsBreakAlreadyRecorded(latestExtLow.time, BREAK_CHOCH))
                 {
-                    double candleRange = high[index] - low[index];
-                    double atrMultiple = (currentAtr > 0.0) ? (candleRange / currentAtr) : 0.0;
-                    EStrength strength = STRENGTH_WEAK;
-                    if (atrMultiple >= 2.0)
-                        strength = STRENGTH_STRONG;
-                    else if (atrMultiple >= 1.0)
-                        strength = STRENGTH_AVERAGE;
+                    // Calculate displacement-aware break strength (OPEN-010)
+                    EStrength strength = CalculateBreakStrength(high[index], low[index], open[index], close[index], currentAtr, false);
 
                     RecordBreak(index, latestExtLow.price, time[index], BREAK_CHOCH, strength, latestExtLow);
                     confirmed = true;
@@ -346,23 +343,18 @@ bool CBreakDetector::EvaluateBarForBreaks(int index,
             }
         }
     }
-    else if (trend == TREND_BEARISH)
+    else if (checkBullishChoch)
     {
         // Protected swing is the latest confirmed External Swing High
         if (latestExtHigh.isConfirmed)
         {
-            // Wick goes above protected swing high, but body does not close above it
-            if (high[index] > latestExtHigh.price && close[index] <= latestExtHigh.price)
+            // Bullish CHoCH: body closes above protected swing high + minBreakDistance
+            if (close[index] > latestExtHigh.price + minBreakDistance)
             {
                 if (!IsBreakAlreadyRecorded(latestExtHigh.time, BREAK_CHOCH))
                 {
-                    double candleRange = high[index] - low[index];
-                    double atrMultiple = (currentAtr > 0.0) ? (candleRange / currentAtr) : 0.0;
-                    EStrength strength = STRENGTH_WEAK;
-                    if (atrMultiple >= 2.0)
-                        strength = STRENGTH_STRONG;
-                    else if (atrMultiple >= 1.0)
-                        strength = STRENGTH_AVERAGE;
+                    // Calculate displacement-aware break strength (OPEN-010)
+                    EStrength strength = CalculateBreakStrength(high[index], low[index], open[index], close[index], currentAtr, true);
 
                     RecordBreak(index, latestExtHigh.price, time[index], BREAK_CHOCH, strength, latestExtHigh);
                     confirmed = true;
@@ -413,6 +405,56 @@ bool CBreakDetector::Update(const CSwingDetector &swingDetector,
 
     m_lastProcessedRatesTotal = ratesTotal;
     return confirmed;
+}
+
+//+------------------------------------------------------------------+
+//| Calculates the displacement strength for a structure break       |
+//| Source: kennystrategy2.md Section 1.9 & 1.10                    |
+//+------------------------------------------------------------------+
+EStrength CBreakDetector::CalculateBreakStrength(double highVal, double lowVal, double openVal, double closeVal, double atrVal, bool isBullish) const
+{
+    double range = highVal - lowVal;
+    if (range <= 0.0)
+        return STRENGTH_WEAK;
+
+    double body = MathAbs(closeVal - openVal);
+    double bodyRatio = body / range;
+
+    double closeStrength = 0.0;
+    if (isBullish)
+        closeStrength = (closeVal - lowVal) / range;
+    else
+        closeStrength = (highVal - closeVal) / range;
+
+    // Load dynamic configuration thresholds
+    SEngineConfig config = CMNSConfig::GetActive();
+    double minBodyRatio = config.displacementMinBodyRatio;
+    double minCloseStrength = config.displacementMinCloseStrength;
+    double minAtrMultiple = config.displacementMinAtrMultiple;
+
+    // Check displacement: Body/Range >= minBodyRatio AND CloseStrength >= minCloseStrength AND Range >= minAtrMultiple * ATR
+    bool isDisplaced = (bodyRatio >= minBodyRatio) && (closeStrength >= minCloseStrength);
+    
+    if (atrVal > 0.0)
+    {
+        if (range < minAtrMultiple * atrVal)
+            isDisplaced = false;
+    }
+
+    if (!isDisplaced)
+        return STRENGTH_WEAK; // Low momentum break
+
+    // Grade strength based on ATR multiples for fully displaced breaks
+    if (atrVal > 0.0)
+    {
+        double atrMultiple = range / atrVal;
+        if (atrMultiple >= 2.0)
+            return STRENGTH_VERY_STRONG;
+        if (atrMultiple >= 1.5)
+            return STRENGTH_STRONG;
+    }
+    
+    return STRENGTH_AVERAGE;
 }
 
 #endif // __MNS_BREAK_DETECTOR_MQH__

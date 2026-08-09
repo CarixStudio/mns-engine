@@ -253,6 +253,18 @@ public:
                 int             ratesTotal,
                 int             prevCalculated)
     {
+        double emptyAtr[];
+        return Update(high, low, time, ratesTotal, prevCalculated, emptyAtr);
+    }
+
+    /// @brief Processes newly closed bars and confirms any new swings with ATR.
+    bool Update(const double   &high[],
+                const double   &low[],
+                const datetime &time[],
+                int             ratesTotal,
+                int             prevCalculated,
+                const double   &atr[])
+    {
         if (!m_isInitialized)
             return false;
 
@@ -262,17 +274,7 @@ public:
         if (ratesTotal < minBars)
             return false;
 
-        //--- Series index boundaries:
-        //---
-        //---   index 0               = forming candle (NEVER evaluated)
-        //---   index MNS_SWING_MIN_SHIFT = minimum evaluable (strategy: shift 2)
-        //---   index m_externalDepth  = newest bar with full external right-side window
-        //---   index m_internalDepth  = newest bar with full internal right-side window
-        //---
-        //--- We start from newestEvaluable which is m_externalDepth, because below
-        //--- that index there are insufficient right-side bars for external checks.
-        //--- Internal checks at indices < m_externalDepth but >= m_internalDepth
-        //--- are still performed (they have enough right-side bars for depth 5).
+        //--- Series index boundaries
         int newestEvaluable = m_externalDepth;
 
         //--- Clamp newestEvaluable to strategy minimum shift.
@@ -286,8 +288,6 @@ public:
             return false;
 
         //--- Determine start of scan for this call.
-        //--- Full scan when prevCalculated == 0; incremental otherwise.
-        //--- Source: kennystrstegy.md Phase 1B — Performance section.
         int startIndex = (prevCalculated == 0) ? oldestEvaluable : newestEvaluable;
 
         if (startIndex > oldestEvaluable)
@@ -298,7 +298,8 @@ public:
         //--- Scan oldest → newest to maintain chronological storage order.
         for (int i = startIndex; i >= newestEvaluable; i--)
         {
-            if (EvaluateBar(i, high, low, time, ratesTotal))
+            double atrVal = (ArraySize(atr) > i) ? atr[i] : 0.0;
+            if (EvaluateBar(i, high, low, time, ratesTotal, atrVal))
                 confirmed = true;
         }
 
@@ -315,7 +316,8 @@ public:
 
             for (int i = internalOnlyStart; i >= internalOnlyEnd; i--)
             {
-                if (EvaluateInternalBar(i, high, low, time, ratesTotal))
+                double atrVal = (ArraySize(atr) > i) ? atr[i] : 0.0;
+                if (EvaluateInternalBar(i, high, low, time, ratesTotal, atrVal))
                     confirmed = true;
             }
         }
@@ -523,31 +525,32 @@ private:
                      const double   &high[],
                      const double   &low[],
                      const datetime &time[],
-                     int             ratesTotal)
+                     int             ratesTotal,
+                     double          atrValue)
     {
         bool confirmed = false;
 
         //--- External checks (requires full externalDepth window on each side)
-        if (IsExternalSwingHigh(index, high, ratesTotal))
+        if (IsExternalSwingHigh(index, high, ratesTotal, atrValue))
         {
             if (StoreExternal(index, high[index], time[index], SWING_HIGH))
                 confirmed = true;
         }
 
-        if (IsExternalSwingLow(index, low, ratesTotal))
+        if (IsExternalSwingLow(index, low, ratesTotal, atrValue))
         {
             if (StoreExternal(index, low[index], time[index], SWING_LOW))
                 confirmed = true;
         }
 
         //--- Internal checks (requires full internalDepth window on each side)
-        if (IsInternalSwingHigh(index, high, ratesTotal))
+        if (IsInternalSwingHigh(index, high, ratesTotal, atrValue))
         {
             if (StoreInternal(index, high[index], time[index], SWING_HIGH))
                 confirmed = true;
         }
 
-        if (IsInternalSwingLow(index, low, ratesTotal))
+        if (IsInternalSwingLow(index, low, ratesTotal, atrValue))
         {
             if (StoreInternal(index, low[index], time[index], SWING_LOW))
                 confirmed = true;
@@ -557,33 +560,22 @@ private:
     }
 
     /// @brief Evaluates a single bar for internal swings only.
-    ///
-    /// Used for bars in the range [internalDepth .. externalDepth-1]
-    /// that have enough right-side bars for internal detection but not
-    /// enough for external detection.
-    ///
-    /// @param index      Bar index to evaluate (series order).
-    /// @param high       High price array.
-    /// @param low        Low price array.
-    /// @param time       Bar time array.
-    /// @param ratesTotal Total bars.
-    ///
-    /// @return True if at least one internal swing was confirmed.
     bool EvaluateInternalBar(int             index,
                              const double   &high[],
                              const double   &low[],
                              const datetime &time[],
-                             int             ratesTotal)
+                             int             ratesTotal,
+                             double          atrValue)
     {
         bool confirmed = false;
 
-        if (IsInternalSwingHigh(index, high, ratesTotal))
+        if (IsInternalSwingHigh(index, high, ratesTotal, atrValue))
         {
             if (StoreInternal(index, high[index], time[index], SWING_HIGH))
                 confirmed = true;
         }
 
-        if (IsInternalSwingLow(index, low, ratesTotal))
+        if (IsInternalSwingLow(index, low, ratesTotal, atrValue))
         {
             if (StoreInternal(index, low[index], time[index], SWING_LOW))
                 confirmed = true;
@@ -617,63 +609,37 @@ private:
     ///         [index-15 .. index+15] window (excluding index itself).
     bool IsExternalSwingHigh(int           index,
                              const double &high[],
-                             int           ratesTotal) const
+                             int           ratesTotal,
+                             double        atrValue) const
     {
-        return IsHighestInWindow(index, high[index], high, m_externalDepth, ratesTotal);
+        return IsHighestInWindow(index, high[index], high, m_externalDepth, ratesTotal, atrValue);
     }
 
     /// @brief Returns true if bar[index] is a confirmed External Swing Low.
-    ///
-    /// Source: kennystrstegy.md — Phase 1B, External Swing Low:
-    ///   "Exactly opposite. Lowest Low → Left → Right → Confirmed"
-    ///
-    /// @param index      Candidate bar index (series order).
-    /// @param low        Low price array (series order).
-    /// @param ratesTotal Total bars for bounds checking.
-    ///
-    /// @return True if bar[index].low is strictly lowest in the
-    ///         [index-15 .. index+15] window (excluding index itself).
     bool IsExternalSwingLow(int           index,
                             const double &low[],
-                            int           ratesTotal) const
+                            int           ratesTotal,
+                            double        atrValue) const
     {
-        return IsLowestInWindow(index, low[index], low, m_externalDepth, ratesTotal);
+        return IsLowestInWindow(index, low[index], low, m_externalDepth, ratesTotal, atrValue);
     }
 
     /// @brief Returns true if bar[index] is a confirmed Internal Swing High.
-    ///
-    /// Source: kennystrstegy.md — Phase 1B, Internal Swing High:
-    ///   "Exactly same algorithm except Depth = 5 instead of [15]"
-    ///
-    /// @param index      Candidate bar index (series order).
-    /// @param high       High price array (series order).
-    /// @param ratesTotal Total bars for bounds checking.
-    ///
-    /// @return True if bar[index].high is strictly highest in the
-    ///         [index-5 .. index+5] window (excluding index itself).
     bool IsInternalSwingHigh(int           index,
                              const double &high[],
-                             int           ratesTotal) const
+                             int           ratesTotal,
+                             double        atrValue) const
     {
-        return IsHighestInWindow(index, high[index], high, m_internalDepth, ratesTotal);
+        return IsHighestInWindow(index, high[index], high, m_internalDepth, ratesTotal, atrValue);
     }
 
     /// @brief Returns true if bar[index] is a confirmed Internal Swing Low.
-    ///
-    /// Source: kennystrstegy.md — Phase 1B, Internal Swing Low:
-    ///   "Depth = [5]"
-    ///
-    /// @param index      Candidate bar index (series order).
-    /// @param low        Low price array (series order).
-    /// @param ratesTotal Total bars for bounds checking.
-    ///
-    /// @return True if bar[index].low is strictly lowest in the
-    ///         [index-5 .. index+5] window (excluding index itself).
     bool IsInternalSwingLow(int           index,
                             const double &low[],
-                            int           ratesTotal) const
+                            int           ratesTotal,
+                            double        atrValue) const
     {
-        return IsLowestInWindow(index, low[index], low, m_internalDepth, ratesTotal);
+        return IsLowestInWindow(index, low[index], low, m_internalDepth, ratesTotal, atrValue);
     }
 
     //+------------------------------------------------------------------+
@@ -704,7 +670,8 @@ private:
                            double        pivot,
                            const double &arr[],
                            int           depth,
-                           int           total) const
+                           int           total,
+                           double        atrValue) const
     {
         //--- Validate left-side bounds (older bars = higher series indices).
         if (index + depth >= total)
@@ -714,19 +681,19 @@ private:
         if (index - depth < 0)
             return false;
 
-        //--- Loop left: older bars.
-        //--- Source: "Loop Left → Higher? → Reject"
+        double tolerance = MathMax(2.0 * _Point, 0.05 * atrValue);
+
+        //--- Loop left: older bars (must be strictly higher or reject if equal/greater within tolerance)
         for (int j = index + 1; j <= index + depth; j++)
         {
-            if (arr[j] >= pivot)
+            if (arr[j] >= pivot - tolerance)
                 return false;
         }
 
-        //--- Loop right: newer bars.
-        //--- Source: "Loop Right → Higher? → Reject"
+        //--- Loop right: newer bars (pivot is the earlier swing, so allow equal right-side touches)
         for (int j = index - 1; j >= index - depth; j--)
         {
-            if (arr[j] >= pivot)
+            if (arr[j] > pivot + tolerance)
                 return false;
         }
 
@@ -734,25 +701,13 @@ private:
     }
 
     /// @brief Returns true if pivot is strictly less than ALL values
-    ///        in the symmetric window of size depth on each side.
-    ///
-    /// Mirror of IsHighestInWindow for swing lows.
-    ///
-    /// Source: kennystrstegy.md Phase 1B — External Swing Low:
-    ///   "Exactly opposite. Lowest Low → Left → Right → Confirmed"
-    ///
-    /// @param index   Series index of the pivot bar.
-    /// @param pivot   The pivot low value to compare against.
-    /// @param arr     Price array to compare (low values).
-    /// @param depth   Number of bars to check on each side.
-    /// @param total   Total bars in arr for bounds safety.
-    ///
-    /// @return True if pivot is strictly the lowest in the window.
+    ///        in the symmetric window of size depth on each side (with tolerance).
     bool IsLowestInWindow(int           index,
                           double        pivot,
                           const double &arr[],
                           int           depth,
-                          int           total) const
+                          int           total,
+                          double        atrValue) const
     {
         //--- Validate left-side bounds.
         if (index + depth >= total)
@@ -762,17 +717,19 @@ private:
         if (index - depth < 0)
             return false;
 
-        //--- Loop left: older bars.
+        double tolerance = MathMax(2.0 * _Point, 0.05 * atrValue);
+
+        //--- Loop left: older bars (must be strictly lower or reject if equal/lower within tolerance)
         for (int j = index + 1; j <= index + depth; j++)
         {
-            if (arr[j] <= pivot)
+            if (arr[j] <= pivot + tolerance)
                 return false;
         }
 
-        //--- Loop right: newer bars.
+        //--- Loop right: newer bars (pivot is the earlier swing, so allow equal right-side touches)
         for (int j = index - 1; j >= index - depth; j--)
         {
-            if (arr[j] <= pivot)
+            if (arr[j] < pivot - tolerance)
                 return false;
         }
 

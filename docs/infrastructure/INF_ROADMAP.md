@@ -28,7 +28,7 @@ These modules are completely independent of trading strategy rules and are prior
 | **INF-004** | Configuration System | `[x]` Complete | `Include/MNS/MNSConfig.mqh` | Parsing runtime profiles and input variables. |
 | **INF-005** | Serialization | `[x]` Complete | `Include/MNS/MNSSerializer.mqh` | Interfaces for state restoration. |
 | **INF-006** | Testing Framework | `[x]` Complete | `Include/MNS/MNSTestSuite.mqh` | Unit test execution macros and mock structures. |
-| **INF-007** | Performance Monitor | `[/]` In Progress | `Include/MNS/MNSProfiler.mqh` | Telemetry profiling and microsecond metrics. |
+| **INF-007** | Performance Monitor | `[x]` Complete | `Include/MNS/MNSProfiler.mqh` | Telemetry profiling and microsecond metrics. |
 
 ---
 

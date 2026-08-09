@@ -78,7 +78,7 @@ Produces:
 
 ---
 
-## Module 002 — CSwingDetector ✅ (In Progress)
+## Module 002 — CSwingDetector ✅
 
 Swing detection. Single source of truth for all swing analysis.
 
@@ -86,10 +86,7 @@ Produces:
 - External swing highs and lows (15-candle depth)
 - Internal swing highs and lows (5-candle depth)
 
-Status: Compiled. Test harness passing.
-Pending: Strategy ambiguities OPEN-001 to OPEN-004 must be resolved
-         before IsSwingHigh() and IsSwingLow() can be finalized.
-         See docs/TODO_STRATEGY.md.
+Status: Completed. Test harness passing.
 
 ---
 
@@ -138,7 +135,7 @@ We have paused development of the strategy modules due to outstanding client amb
 - [x] **INF-004 — Configuration System** (`MNSConfig.mqh`) — Settings profiles and input validation boundaries.
 - [x] **INF-005 — Serialization** (`MNSSerializer.mqh`) — Standard interfaces for object archiving to disk.
 - [x] **INF-006 — Testing Framework** (`MNSTestSuite.mqh`) — Testing assertions and mock structures.
-- [/] **INF-007 — Performance Monitor** (`MNSProfiler.mqh`) — Telemetry profiling and microsecond metrics.
+- [x] **INF-007 — Performance Monitor** (`MNSProfiler.mqh`) — Telemetry profiling and microsecond metrics.
 
 ---
 

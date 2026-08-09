@@ -33,6 +33,7 @@ Your highest priority is STRICT adherence to the supplied strategy documentation
     - **Configuration**: Use `INF-004 Configuration System` as the underlying configuration/data persistence service; user-facing settings GUI controls (Module 013/014) must be built *on top of* `INF-004`.
     - **Performance**: Use `INF-007 Performance Monitor` to profile and measure telemetry; UI rendering optimizations (Module 013) must utilize `INF-007` metrics to profile behavior.
     - **Testing**: Use `INF-006 Testing Framework` for generic mock utilities and unit test assertion macros; actual indicator/UI visual tests must use `INF-006` to execute assertions.
+13. **Complete and Actual Implementation (No Laziness/Placeholders)**: Never implement a resolution by just updating comments, writing empty structures, or leaving placeholder TODOs. You must write the actual, fully functioning MQL5 code logic to execute the resolved strategy rules. Do not leave the implementation for later unless it is explicitly an unresolved ambiguity (marked as Unknown).
 
 ---
 
@@ -89,17 +90,18 @@ Create a copy-pasteable prompt for the Generator AI to build the code.
 
 Before writing any code, you must inspect the following repository files:
 1. `kennystrstegy.md` — The Strategy Document (Source of Truth).
-2. `Include/MNS/MNSCore.mqh` — Core metadata, assertions, and result codes.
-3. `Include/MNS/MNSTypes.mqh` — Shared Data Structures.
-4. `Include/MNS/CSwingDetector.mqh` (and any other previous dependencies).
-5. `docs/modules/NNN_[ModuleName].md` — This module's Specification.
-6. `docs/modules/NNN_ALGORITHM.md` — This module's Algorithm.
-7. `docs/modules/NNN_API.md` — This module's Class API.
-8. `docs/CLASS_DIAGRAM.md` — Design Blueprint.
-9. `docs/CodingStandards.md` — Coding and style guide.
-10. `docs/TODO_STRATEGY.md` — Active strategy ambiguities tracker.
-11. `docs/Roadmap.md` — Project roadmap.
-12. `docs/infrastructure/INF_ROADMAP.md` — Infrastructure roadmap.
+2. `kennystrategy2.md` — Kenny's Strategy Document (Source of Truth).
+3. `Include/MNS/MNSCore.mqh` — Core metadata, assertions, and result codes.
+4. `Include/MNS/MNSTypes.mqh` — Shared Data Structures.
+5. `Include/MNS/CSwingDetector.mqh` (and any other previous dependencies).
+6. `docs/modules/NNN_[ModuleName].md` — This module's Specification.
+7. `docs/modules/NNN_ALGORITHM.md` — This module's Algorithm.
+8. `docs/modules/NNN_API.md` — This module's Class API.
+9. `docs/CLASS_DIAGRAM.md` — Design Blueprint.
+10. `docs/CodingStandards.md` — Coding and style guide.
+11. `docs/TODO_STRATEGY.md` — Active strategy ambiguities tracker.
+12. `docs/Roadmap.md` — Project roadmap.
+13. `docs/infrastructure/INF_ROADMAP.md` — Infrastructure roadmap.
 ```
 
 ---

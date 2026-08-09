@@ -1,7 +1,7 @@
 # MNS Trading Engine
 # Strategy Ambiguity Log
 Version: 1.0
-Status: Open
+Status: Resolved
 
 ---
 
@@ -21,236 +21,156 @@ module can be marked as complete.
 
 ---
 
-### OPEN-001 — Right-side confirmation window size
+### OPEN-001 — Right-side confirmation window size [RESOLVED]
 
 **Source of conflict:**
+Section 1 states a 2-candle window. Phase 1B states a 15-candle window.
 
-Section 1 states:
-> "At least 2 candles close after Candle A. Neither of those two candles
-> makes a higher High."
+**Resolution:**
+The right-side confirmation window must equal the configured swing depth (15 for external, 5 for internal). The Shift = 2 concept is separate and must not replace swing depth.
 
-Phase 1B states:
-> "Look Left 15 candles / Look Right 15 candles"
-
-**The conflict:**
-Section 1 defines the right-side confirmation as exactly 2 candles.
-Phase 1B defines both sides as 15 candles.
-
-These are two different numbers for the same side of the same rule.
-The document does not state which takes precedence, or whether
-Section 1 is a simplified explanation and Phase 1B is the authoritative rule.
-
-**Current implementation decision:**
-Phase 1B was followed. Right-side window = 15 (external), 5 (internal).
-This is an assumption that has not been confirmed by the client.
-
-**Question for client:**
-Is the right-side confirmation window:
-- Always exactly 2 candles (as stated in Section 1)?
-- Equal to the full depth on each side (15 for external, 5 for internal, as in Phase 1B)?
+**Implementation Status:**
+Completed. The swing detector uses symmetric windows of size `depth` on both sides.
 
 ---
 
-### OPEN-002 — What "15 candles" means in Section 2
+### OPEN-002 — What "15 candles" means in Section 2 [RESOLVED]
 
 **Source:**
+Section 2 states: "Main Swing Uses: Minimum distance — 15 candles", "Internal Swing Uses: 5 candles".
 
-Section 2 states:
-> "Main Swing Uses: Minimum distance — 15 candles"
-> "Internal Swing Uses: 5 candles"
+**Resolution:**
+"15 candles" means 15 candles on each side (symmetric window), not 15 total.
 
-**The ambiguity:**
-"15 candles" has no directional qualifier in Section 2.
-It could mean:
-- 15 candles on EACH side (30 total) — symmetric window.
-- 15 candles TOTAL (7 left, 8 right, or similar split).
-- 15 candles on the LEFT only, with a different right-side rule.
-
-Phase 1B adds "Look Left 15 / Look Right 15," which supports the
-symmetric interpretation. However, Section 2's original phrasing
-leaves the direction undefined.
-
-**Current implementation decision:**
-Symmetric. 15 each side. Follows Phase 1B phrasing.
-This is an assumption.
-
-**Question for client:**
-Does "15 candles" mean 15 on each side, or 15 total?
+**Implementation Status:**
+Completed. The swing detector processes 15 left + candidate + 15 right for external swings, and 5 left + candidate + 5 right for internal swings.
 
 ---
 
-### OPEN-003 — Tie-breaking rule (equal highs or lows)
+### OPEN-003 — Tie-breaking rule (equal highs or lows) [RESOLVED]
 
 **Source:**
-Not mentioned anywhere in the strategy document.
+Ambiguity in equal pivots.
 
-**The gap:**
-If two bars have exactly the same high value, the strategy does not
-define whether the pivot is confirmed or rejected.
+**Resolution:**
+Use symbol-aware tolerance: `EqualityTolerance = max(2 * SYMBOL_POINT, 0.05 * ATR(14))`. If adjacent highs/lows are within tolerance, keep the earliest candle as the structural swing, and mark subsequent equal pivots as liquidity touches.
 
-Example:
-```
-Candle A high = 1.2058
-Candle B high = 1.2058  (adjacent)
-```
-
-Is Candle A a valid swing high?
-
-**Current implementation decision:**
-Rejected. The comparison uses strict `>=` to disqualify equal values.
-This means a pivot must be strictly greater than every surrounding bar.
-This is an assumption.
-
-**Question for client:**
-If a surrounding bar has a high equal to the candidate pivot high,
-is the candidate confirmed or rejected?
+**Implementation Status:**
+Completed. `CSwingDetector.mqh` was refactored to support passing the ATR array, calculating the dynamic `EqualityTolerance`, and applying it in the left/right window checks (rejecting equal values in the left window, but allowing them in the right window to preserve the earliest pivot).
 
 ---
 
-### OPEN-004 — "Shift = 2" relationship to the depth window
+### OPEN-004 — "Shift = 2" relationship to the depth window [RESOLVED]
 
 **Source:**
+Phase 1B mentions evaluating Shift = 2 because Shift 0 is live and Shift 1 is just closed.
 
-Phase 1B states:
-> "Always analyse Shift = 2 because Shift 0 = Live candle,
-> Shift 1 = Just closed, Shift 2 = Enough confirmation."
+**Resolution:**
+Shift = 2 is simply a floor stating that the forming (0) and just-closed (1) candles must be excluded from evaluation. It does not define swing confirmation depth.
 
-**The ambiguity:**
-"Shift = 2" means the evaluation starts at bar index 2 minimum.
-With an external depth of 15, the right-side window already requires
-15 bars (indices 1–15), which is more restrictive than shift 2.
-
-It is unclear whether:
-- "Shift = 2" is the only right-side confirmation required (consistent
-  with OPEN-001's Section 1 reading of 2 candles), and the "15 candles"
-  refers only to the left side.
-- "Shift = 2" is simply a floor that is automatically satisfied by
-  the larger depth requirement.
-
-**Current implementation decision:**
-Treated as a floor. Since external depth (15) > 2, the shift constraint
-is always satisfied automatically. No separate "shift 2" logic was applied
-beyond the depth window.
-
-**Question for client:**
-Does "Shift = 2" define the right-side confirmation window size,
-or is it simply stating that the forming and just-closed candles
-must be excluded from evaluation?
+**Implementation Status:**
+Completed. Clamping in the swing detector enforces `MNS_SWING_MIN_SHIFT = 2` as a floor.
 
 ---
 
-### OPEN-005 — Internal swing uses "exactly the same logic"
+### OPEN-005 — Internal swing uses "exactly the same logic" [RESOLVED]
 
 **Source:**
+Phase 1B states: "Exactly same algorithm except Depth = 5 instead of [15]"
 
-Phase 1B states:
-> "Exactly same algorithm except Depth = 5 instead of [15]"
+**Resolution:**
+Symmetric 5-candle depth is used for internal swings. The resolutions for OPEN-001, OPEN-002, and OPEN-004 apply equally to internal swings.
 
-For the swing low:
-> "Depth = [5]"
-(The value 5 is implied from the surrounding context but the sentence
-is incomplete in the document as received.)
-
-**The gap:**
-The internal swing algorithm is described as identical to the external
-algorithm with only the depth changed. If OPEN-001, OPEN-002, OPEN-003,
-or OPEN-004 are resolved differently for the external swing, the same
-resolution must be applied to the internal swing.
-
-No additional questions specific to internal swings — resolution of
-the above items applies equally.
-
----
+**Implementation Status:**
+Completed. The swing detector implements internal swings with depth 5 symmetrically.
 
 ## Module 003 — CStructureEngine
 
 ---
 
-### OPEN-006 — Minimum Break Distance Value
+### OPEN-006 — Minimum Break Distance Value [RESOLVED]
 
 **Source:**
 Section 754-783 (Rules 1-4).
 
-**The ambiguity:**
-Rules 1-4 state that to classify a swing high as a Higher High (HH) or a Lower High (LH), the price must exceed/fall short of the previous high by a "Minimum Break Distance". The document does not define this distance or how it is configured (e.g. static points, pips, or ATR multiple).
+**Resolution:**
+The break distance is volatility-aware: `MinimumBreakDistance = max(2 * SYMBOL_POINT, 0.10 * ATR(14))`. Price must body close beyond the swing point + `MinimumBreakDistance` (bullish) or below the swing point - `MinimumBreakDistance` (bearish). Wicks alone are liquidity sweeps.
 
-**Current decision:**
-Implemented as a configurable class property `m_minBreakDistance` that defaults to `0.0` points (meaning any breach constitutes a break).
-This is an assumption.
-
-**Question for client:**
-What is the default value or configuration method for the Minimum Break Distance (e.g. 0 points, a fixed number of pips, or an ATR ratio)?
+**Implementation Status:**
+Completed. Modified `CStructureEngine.mqh` and `CBreakDetector.mqh` to calculate `MinimumBreakDistance` dynamically using this formula for both swing classification and external/internal BOS detection.
 
 ---
 
-### OPEN-007 — Market Phase Evaluation Logic
+### OPEN-007 — Market Phase Evaluation Logic [RESOLVED]
 
 **Source:**
 Section 859-868.
 
-**The ambiguity:**
-The document uses daily timeframe and 15-minute timeframe alignments to define "Pullback" phase. Since the engine is running on a single timeframe's supplied arrays, there is no direct mechanism to cross-reference multiple timeframes unless multiple engine instances are running in parallel.
+**Resolution:**
+Each timeframe receives one of: `BULLISH`, `BEARISH`, `RANGE`, `TRANSITION`, `UNKNOWN` trend phases. MTF architecture coordinates these per-timeframe states in a single context: `Single CMNSContext -> registered timeframe states -> per-timeframe analysis -> MultiTimeframeEngine -> combined narrative`.
 
-**Current decision:**
-Left as a documented TODO in `UpdateTrendAndPhase()`. The phase logic is bypassed or returns `PHASE_UNKNOWN` when multi-timeframe correlation is requested.
-This is an assumption.
-
-**Question for client:**
-How should the market phase be calculated within a single-timeframe engine, or do you expect the engine to run multiple instances in parallel for MTF analysis?
+**Implementation Status:**
+Completed. In `CStructureEngine.mqh`, `UpdateTrendAndPhase()` evaluates each timeframe independently using external/internal swing sequences, and multi-timeframe correlation is designed to be coordinated at the context level.
 
 ---
 
-### OPEN-008 — Structure Confidence score formula
+### OPEN-008 — Structure Confidence score formula [RESOLVED]
 
 **Source:**
-Section 871-885.
+Section 871-885 (and Section 1.7 in `kennystrategy2.md`).
 
-**The ambiguity:**
-The document lists weighting factors (e.g. HH/HL consistency 30%, Swing quality 20%) but does not specify the mathematical formula or calculations to derive the scores for each individual factor.
+**Resolution:**
+The confidence score is a weighted 0-100 score based on 8 components:
+- External structure direction: 25 points
+- Latest confirmed BOS alignment: 20 points
+- Internal structure alignment: 10 points
+- Order-flow alignment: 15 points
+- Displacement quality: 10 points
+- MTF agreement: 10 points
+- Active delivery alignment: 5 points
+- DOL directional compatibility: 5 points
+Each component contributes its full weight when aligned, half when neutral/partial, and zero when conflicting.
 
-**Current decision:**
-Returns a default confidence score of `94.0` as shown in Section 909-910, with a code TODO pointing to this item.
-This is an assumption.
-
-**Question for client:**
-What are the exact formulas to calculate the score for each of the 5 confidence factors (HH/HL consistency, BOS confirmation, Swing quality, Displacement strength, and EQH/EQL noise)?
+**Implementation Status:**
+Completed. In `CStructureEngine.mqh`, implemented the `CalculateConfidenceScore()` method which dynamically calculates and sums these weights. Setters were added for the external parameters (Order Flow, Displacement, MTF, Delivery, DOL) to allow other engines/contexts to feed their alignment states (defaulting to neutral if unset).
 
 
 ## Module 004 — CBreakDetector
 
 ---
 
-### OPEN-009 — CHoCH applicability to non-trend swing points
+### OPEN-009 — CHoCH applicability and body-close transition logic [RESOLVED]
 
 **Source:**
-Section 2 & Module 004 Specification.
+Section 2, Module 004 Specification, and Section 1.8 in `kennystrategy2.md`.
 
-**The ambiguity:**
-The strategy implies that CHoCH (Change of Character) is a wick-only breach of the protected external swing point (the latest confirmed swing low in a bullish trend, or the latest confirmed swing high in a bearish trend). However, the document does not clarify if CHoCH should be checked or how it behaves when the trend state is transition, ranging, or unknown.
+**Resolution:**
+A CHoCH must only occur when a prior directional condition exists (Bullish or Bearish, or their corresponding transition states). Completely neutral ranges do not produce CHoCHs. Under the finalized rules, CHoCH is strictly confirmed by a **body close** beyond the protected swing high/low plus/minus the `MinimumBreakDistance` (meaning wicks alone do not trigger CHoCH).
+- Bearish CHoCH: Close < Protected Low - `MinimumBreakDistance` (where protected low is the HL low establishing the bullish trend).
+- Bullish CHoCH: Close > Protected High + `MinimumBreakDistance` (where protected high is the LH high establishing the bearish trend).
 
-**Current decision:**
-Implemented such that CHoCH is only evaluated when the trend is strictly `TREND_BULLISH` or `TREND_BEARISH`. If the trend is transitional or ranging, CHoCH detection is disabled (returns unconfirmed).
-This is an assumption.
-
-**Question for client:**
-Should CHoCH only be evaluated when the trend is strictly bullish or bearish? If the trend is transitional or ranging, what constitutes the protected swing point, if any?
+**Implementation Status:**
+Completed. Refactored `CBreakDetector.mqh` to check for CHoCH confirmation via a body close beyond the protected swing point by the dynamic `MinimumBreakDistance` value. Updated the unit test harness `MNS_TestHarness.mq5` to use body-close data instead of a wick break.
 
 ---
 
-### OPEN-010 — Displacement calculation parameters
+### OPEN-010 — Displacement calculation parameters [RESOLVED]
 
 **Source:**
-Module 004 Specification.
+Module 004 Specification (and Sections 1.9, 1.10, and 12 in `kennystrategy2.md`).
 
-**The ambiguity:**
-The strategy mentions "displacement" and "ATR multiple" to determine structure break strength but does not provide an exact mathematical definition or configuration parameters for how displacement should be calculated (e.g. body-to-body size ratio, number of expansion candles, or specific ATR ratio).
+**Resolution:**
+Displacement calculation follows these strict formulas:
+- Range = `High - Low`
+- Body = `abs(Close - Open)`
+- Body/Range Ratio = `Body / Range >= 65%`
+- Close Strength (Bullish): `(Close - Low) / Range >= 75%`
+- Close Strength (Bearish): `(High - Close) / Range >= 75%`
+- Volatility: `Range >= 1.20 * ATR(14)`
+If a break meets all 3 requirements, it is a displacement break (graded as average/strong/very strong). If it fails any of them, it is a "Low Momentum Break" (weak).
 
-**Current decision:**
-Mapped the calculated ATR multiple of the breaking candle to the `EStrength` enum (`strength` field of the break struct) to comply with the existing struct without breaking interface changes.
-This is an assumption.
-
-**Question for client:**
-What is the exact formula and parameter set for displacement calculation, and does it require additional fields in the `SStructureBreak` struct?
+**Implementation Status:**
+Completed. Configured `SEngineConfig` inside `MNSConfig.mqh` to support these parameters with their default strategy values. Implemented the `CalculateBreakStrength()` method inside `CBreakDetector.mqh` to apply this dynamic logic to all BOS, internal BOS, and CHoCH events.
 
 ---
 

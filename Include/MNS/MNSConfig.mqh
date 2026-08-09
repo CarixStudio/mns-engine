@@ -40,6 +40,10 @@ struct SEngineConfig
     double atrTolerance;
     double minBreakDistance;
     double confidenceThreshold;
+    double displacementMinAtrMultiple;
+    double displacementMinBodyRatio;
+    double displacementMinCloseStrength;
+    int    atrPeriod;
     bool   logEnable;
     int    logLevel;
 };
@@ -58,11 +62,15 @@ public:
     {
         s_config.externalDepth        = 15;
         s_config.internalDepth        = 5;
-        s_config.atrTolerance         = 0.0010;
-        s_config.minBreakDistance     = 0.0000;
-        s_config.confidenceThreshold  = 94.0;
-        s_config.logEnable            = true;
-        s_config.logLevel             = 1; // MNS_LOG_INFO
+        s_config.atrTolerance                  = 0.0010;
+        s_config.minBreakDistance              = 0.0000;
+        s_config.confidenceThreshold           = 94.0;
+        s_config.displacementMinAtrMultiple    = 1.20;
+        s_config.displacementMinBodyRatio      = 0.65;
+        s_config.displacementMinCloseStrength  = 0.75;
+        s_config.atrPeriod                     = 14;
+        s_config.logEnable                     = true;
+        s_config.logLevel                      = 1; // MNS_LOG_INFO
     }
 
     /// @brief Returns a copy of the active engine configuration.
@@ -137,6 +145,39 @@ public:
             {
                 s_config.confidenceThreshold = value;
             }
+            return true;
+        }
+        else if (name == "displacementMinAtrMultiple")
+        {
+            MNS_Assert(value >= 0.0, "UpdateParameter: displacementMinAtrMultiple cannot be negative");
+            if (value < 0.0)
+                return false;
+            s_config.displacementMinAtrMultiple = value;
+            return true;
+        }
+        else if (name == "displacementMinBodyRatio")
+        {
+            MNS_Assert(value >= 0.0 && value <= 1.0, "UpdateParameter: displacementMinBodyRatio must be between 0.0 and 1.0");
+            if (value < 0.0 || value > 1.0)
+                return false;
+            s_config.displacementMinBodyRatio = value;
+            return true;
+        }
+        else if (name == "displacementMinCloseStrength")
+        {
+            MNS_Assert(value >= 0.0 && value <= 1.0, "UpdateParameter: displacementMinCloseStrength must be between 0.0 and 1.0");
+            if (value < 0.0 || value > 1.0)
+                return false;
+            s_config.displacementMinCloseStrength = value;
+            return true;
+        }
+        else if (name == "atrPeriod")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 1, "UpdateParameter: atrPeriod must be >= 1");
+            if (val < 1)
+                return false;
+            s_config.atrPeriod = val;
             return true;
         }
         else if (name == "logEnable")

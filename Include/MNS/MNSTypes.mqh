@@ -156,6 +156,28 @@ enum EStrength
     STRENGTH_VERY_STRONG = 4  ///< Exceptional conviction or dominant structural element.
 };
 
+//-------------------------------------------------------------------
+/// @brief Represents the directional bias of the order flow.
+//-------------------------------------------------------------------
+enum EOrderFlowDirection
+{
+    ORDER_FLOW_DIR_NEUTRAL = 0,  ///< No clear order flow bias.
+    ORDER_FLOW_DIR_BULLISH = 1,  ///< Order flow is bullish.
+    ORDER_FLOW_DIR_BEARISH = 2   ///< Order flow is bearish.
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the detailed state of the order flow.
+//-------------------------------------------------------------------
+enum EOrderFlowState
+{
+    ORDER_FLOW_NEUTRAL            = 0,  ///< Neutral state.
+    ORDER_FLOW_BULLISH            = 1,  ///< Confirmed bullish order flow.
+    ORDER_FLOW_BEARISH            = 2,  ///< Confirmed bearish order flow.
+    ORDER_FLOW_TRANSITION_BULLISH = 3,  ///< Reversal warning, transitioning bullish.
+    ORDER_FLOW_TRANSITION_BEARISH = 4   ///< Reversal warning, transitioning bearish.
+};
+
 //+------------------------------------------------------------------+
 //| Shared Data Structures                                           |
 //+------------------------------------------------------------------+
@@ -290,6 +312,50 @@ struct SMarketState
         lastCHoCH.Reset();
         lastSwingHigh.Reset();
         lastSwingLow.Reset();
+    }
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the active order flow state and metrics.
+//-------------------------------------------------------------------
+struct SOrderFlowState
+{
+    EOrderFlowDirection direction;          ///< Active directional trade bias.
+    EOrderFlowDirection previousDirection;  ///< Direction before transition.
+    EOrderFlowState     state;              ///< Granular state including transitions.
+    double              confidenceScore;    ///< Order flow confidence (0 to 100).
+    datetime            originSwingId;      ///< Time of the swing initiating the leg.
+    datetime            protectedSwingId;   ///< Time of the active protected swing.
+    datetime            lastBOSId;          ///< Time of the latest confirmed BOS.
+    datetime            lastCHoCHId;        ///< Time of the latest transition CHoCH.
+    datetime            displacementId;     ///< Time of the latest displacement break.
+    datetime            startTime;          ///< Time when current state was entered.
+    datetime            lastUpdatedTime;    ///< Time of the last update.
+    double              bullishStrength;    ///< Volatility-scaled bullish strength.
+    double              bearishStrength;    ///< Volatility-scaled bearish strength.
+    bool                transition;         ///< True if in transition state.
+    bool                confirmed;          ///< True if state is fully confirmed.
+    bool                invalidated;        ///< True if protected swing was breached.
+
+    /// @brief Initializes all fields to safe default values.
+    void Reset()
+    {
+        direction         = ORDER_FLOW_DIR_NEUTRAL;
+        previousDirection = ORDER_FLOW_DIR_NEUTRAL;
+        state             = ORDER_FLOW_NEUTRAL;
+        confidenceScore   = 0.0;
+        originSwingId     = 0;
+        protectedSwingId  = 0;
+        lastBOSId         = 0;
+        lastCHoCHId       = 0;
+        displacementId    = 0;
+        startTime         = 0;
+        lastUpdatedTime   = 0;
+        bullishStrength   = 0.0;
+        bearishStrength   = 0.0;
+        transition        = false;
+        confirmed         = false;
+        invalidated       = false;
     }
 };
 

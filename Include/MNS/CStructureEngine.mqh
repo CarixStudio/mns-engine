@@ -26,7 +26,15 @@
 #include "MNSTypes.mqh"
 #include "CSwingDetector.mqh"
 
-// Define compatibility macros for strategy document naming conventions
+// Define alignment state for multi-factor confidence calculations (OPEN-008)
+enum EAlignmentState
+{
+    ALIGN_CONFLICT = -1,
+    ALIGN_NEUTRAL  = 0,
+    ALIGN_ALIGNED  = 1
+};
+#define ENUM_MNS_ALIGNMENT EAlignmentState
+
 #define ENUM_MNS_TREND           ETrend
 #define ENUM_MNS_PHASE           EMarketPhase
 #define ENUM_MNS_STRUCTURE_TYPE  EStructureType
@@ -38,22 +46,39 @@ private:
     SMarketState    m_state;
     double          m_minBreakDistance; // Configured minimum break distance (default = 0.0)
     
+    // Confidence alignments
+    ENUM_MNS_ALIGNMENT m_orderFlowAlign;
+    ENUM_MNS_ALIGNMENT m_displacementAlign;
+    ENUM_MNS_ALIGNMENT m_mtfAlign;
+    ENUM_MNS_ALIGNMENT m_deliveryAlign;
+    ENUM_MNS_ALIGNMENT m_dolAlign;
+    ENUM_MNS_ALIGNMENT m_bosAlign;
+    ENUM_MNS_ALIGNMENT m_internalAlign;
+    
     // Track last processed swing indices to avoid reprocessing the same swing
     int             m_lastProcessedExternalCount;
     int             m_lastProcessedInternalCount;
 
     // Helper functions
-    ENUM_MNS_STRUCTURE_TYPE ClassifyHigh(const SSwingPoint &current, const SSwingPoint &previous, double atrValue);
-    ENUM_MNS_STRUCTURE_TYPE ClassifyLow(const SSwingPoint &current, const SSwingPoint &previous, double atrValue);
+    ENUM_MNS_STRUCTURE_TYPE ClassifyHigh(const SSwingPoint &current, const SSwingPoint &previous, double atrValue) const;
+    ENUM_MNS_STRUCTURE_TYPE ClassifyLow(const SSwingPoint &current, const SSwingPoint &previous, double atrValue) const;
     void                    UpdateTrendAndPhase(const CSwingDetector &detector, double atrValue);
-    ENUM_MNS_STRUCTURE_TYPE GetSwingStructureType(const CSwingDetector &detector, int index, ESwingLevel level, double atrValue);
-    ENUM_MNS_TREND          DetermineTrendForLevel(const CSwingDetector &detector, ESwingLevel level, double atrValue);
+    ENUM_MNS_STRUCTURE_TYPE GetSwingStructureType(const CSwingDetector &detector, int index, ESwingLevel level, double atrValue) const;
+    ENUM_MNS_TREND          DetermineTrendForLevel(const CSwingDetector &detector, ESwingLevel level, double atrValue) const;
+    double                  CalculateConfidenceScore(const CSwingDetector &detector, double atrValue) const;
 
 public:
     // Lifecycle
     CStructureEngine()
         : m_isInitialized(false),
           m_minBreakDistance(0.0),
+          m_orderFlowAlign(ALIGN_NEUTRAL),
+          m_displacementAlign(ALIGN_NEUTRAL),
+          m_mtfAlign(ALIGN_NEUTRAL),
+          m_deliveryAlign(ALIGN_NEUTRAL),
+          m_dolAlign(ALIGN_NEUTRAL),
+          m_bosAlign(ALIGN_NEUTRAL),
+          m_internalAlign(ALIGN_NEUTRAL),
           m_lastProcessedExternalCount(0),
           m_lastProcessedInternalCount(0)
     {
@@ -65,7 +90,6 @@ public:
     /// @return True on success.
     bool Initialize(double minBreakDistance = 0.0)
     {
-        // TODO: OPEN-006 - Min Break Distance configuration default check
         m_minBreakDistance = minBreakDistance;
         m_lastProcessedExternalCount = 0;
         m_lastProcessedInternalCount = 0;
@@ -79,6 +103,13 @@ public:
     {
         m_lastProcessedExternalCount = 0;
         m_lastProcessedInternalCount = 0;
+        m_orderFlowAlign = ALIGN_NEUTRAL;
+        m_displacementAlign = ALIGN_NEUTRAL;
+        m_mtfAlign = ALIGN_NEUTRAL;
+        m_deliveryAlign = ALIGN_NEUTRAL;
+        m_dolAlign = ALIGN_NEUTRAL;
+        m_bosAlign = ALIGN_NEUTRAL;
+        m_internalAlign = ALIGN_NEUTRAL;
         m_state.Reset();
     }
 
@@ -95,27 +126,39 @@ public:
     bool         IsTransition() const { return m_state.trend == TREND_TRANSITION; }
     bool         IsRanging() const { return m_state.trend == TREND_RANGING; }
     double       GetConfidenceScore() const { return (double)m_state.version; /* Using state.version for confidence score in MNSTypes */ }
+    string       GetConfidenceInterpretation() const;
+
+    // Setters for external confidence alignments (default to neutral if not set)
+    void SetOrderFlowAlignment(ENUM_MNS_ALIGNMENT val)      { m_orderFlowAlign = val; }
+    void SetDisplacementQuality(ENUM_MNS_ALIGNMENT val)     { m_displacementAlign = val; }
+    void SetMtfAgreement(ENUM_MNS_ALIGNMENT val)            { m_mtfAlign = val; }
+    void SetActiveDeliveryAlignment(ENUM_MNS_ALIGNMENT val)  { m_deliveryAlign = val; }
+    void SetDolCompatibility(ENUM_MNS_ALIGNMENT val)        { m_dolAlign = val; }
+    void SetBosAlignment(ENUM_MNS_ALIGNMENT val)            { m_bosAlign = val; }
+    void SetInternalStructureAlignment(ENUM_MNS_ALIGNMENT val) { m_internalAlign = val; }
 };
 
 //+------------------------------------------------------------------+
 //| Classify a swing high point against the previous confirmed high  |
 //+------------------------------------------------------------------+
-ENUM_MNS_STRUCTURE_TYPE CStructureEngine::ClassifyHigh(const SSwingPoint &current, const SSwingPoint &previous, double atrValue)
+ENUM_MNS_STRUCTURE_TYPE CStructureEngine::ClassifyHigh(const SSwingPoint &current, const SSwingPoint &previous, double atrValue) const
 {
     if (previous.price == MNS_INVALID_PRICE || previous.time == MNS_INVALID_TIME)
         return STRUCTURE_NONE;
 
-    double tolerance = 0.10 * atrValue;
+    double tolerance = MathMax(3.0 * _Point, 0.10 * atrValue);
     double diff = current.price - previous.price;
     double absDiff = (diff < 0.0) ? -diff : diff;
 
     if (absDiff <= tolerance)
         return STRUCTURE_EQUAL_HIGH;
 
-    if (current.price > previous.price + m_minBreakDistance)
+    double minBreakDistance = MathMax(2.0 * _Point, 0.10 * atrValue);
+
+    if (current.price > previous.price + minBreakDistance)
         return STRUCTURE_HH;
 
-    if (current.price < previous.price - m_minBreakDistance)
+    if (current.price < previous.price - minBreakDistance)
         return STRUCTURE_LH;
 
     return STRUCTURE_NONE;
@@ -124,22 +167,24 @@ ENUM_MNS_STRUCTURE_TYPE CStructureEngine::ClassifyHigh(const SSwingPoint &curren
 //+------------------------------------------------------------------+
 //| Classify a swing low point against the previous confirmed low   |
 //+------------------------------------------------------------------+
-ENUM_MNS_STRUCTURE_TYPE CStructureEngine::ClassifyLow(const SSwingPoint &current, const SSwingPoint &previous, double atrValue)
+ENUM_MNS_STRUCTURE_TYPE CStructureEngine::ClassifyLow(const SSwingPoint &current, const SSwingPoint &previous, double atrValue) const
 {
     if (previous.price == MNS_INVALID_PRICE || previous.time == MNS_INVALID_TIME)
         return STRUCTURE_NONE;
 
-    double tolerance = 0.10 * atrValue;
+    double tolerance = MathMax(3.0 * _Point, 0.10 * atrValue);
     double diff = current.price - previous.price;
     double absDiff = (diff < 0.0) ? -diff : diff;
 
     if (absDiff <= tolerance)
         return STRUCTURE_EQUAL_LOW;
 
-    if (current.price > previous.price + m_minBreakDistance)
+    double minBreakDistance = MathMax(2.0 * _Point, 0.10 * atrValue);
+
+    if (current.price > previous.price + minBreakDistance)
         return STRUCTURE_HL;
 
-    if (current.price < previous.price - m_minBreakDistance)
+    if (current.price < previous.price - minBreakDistance)
         return STRUCTURE_LL;
 
     return STRUCTURE_NONE;
@@ -148,7 +193,7 @@ ENUM_MNS_STRUCTURE_TYPE CStructureEngine::ClassifyLow(const SSwingPoint &current
 //+------------------------------------------------------------------+
 //| Get the classified structure type of a swing at a given index    |
 //+------------------------------------------------------------------+
-ENUM_MNS_STRUCTURE_TYPE CStructureEngine::GetSwingStructureType(const CSwingDetector &detector, int index, ESwingLevel level, double atrValue)
+ENUM_MNS_STRUCTURE_TYPE CStructureEngine::GetSwingStructureType(const CSwingDetector &detector, int index, ESwingLevel level, double atrValue) const
 {
     SSwingPoint current = (level == SWING_LEVEL_EXTERNAL) ? detector.GetExternalSwing(index) : detector.GetInternalSwing(index);
     
@@ -188,51 +233,102 @@ ENUM_MNS_STRUCTURE_TYPE CStructureEngine::GetSwingStructureType(const CSwingDete
 //+------------------------------------------------------------------+
 //| Determine structural trend direction for a given swing level     |
 //+------------------------------------------------------------------+
-ENUM_MNS_TREND CStructureEngine::DetermineTrendForLevel(const CSwingDetector &detector, ESwingLevel level, double atrValue)
+ENUM_MNS_TREND CStructureEngine::DetermineTrendForLevel(const CSwingDetector &detector, ESwingLevel level, double atrValue) const
 {
     int count = (level == SWING_LEVEL_EXTERNAL) ? detector.GetExternalSwingCount() : detector.GetInternalSwingCount();
-    if (count < 4)
+    if (count < 2)
         return TREND_UNKNOWN;
 
-    // Retrieve structure types for the last 4 swings at this level
-    EStructureType s3 = GetSwingStructureType(detector, count - 4, level, atrValue);
-    EStructureType s2 = GetSwingStructureType(detector, count - 3, level, atrValue);
-    EStructureType s1 = GetSwingStructureType(detector, count - 2, level, atrValue);
-    EStructureType s0 = GetSwingStructureType(detector, count - 1, level, atrValue);
-
-    // Ranging check: if the last several swings are mostly EQH/EQL
+    ENUM_MNS_TREND currentTrend = TREND_UNKNOWN;
+    
+    // Track the latest structural relationship types
+    EStructureType lastHighType = STRUCTURE_NONE;
+    EStructureType lastLowType  = STRUCTURE_NONE;
+    
+    // Consecutive equal swings to detect range
     int equalCount = 0;
-    if (s3 == STRUCTURE_EQUAL_HIGH || s3 == STRUCTURE_EQUAL_LOW) equalCount++;
-    if (s2 == STRUCTURE_EQUAL_HIGH || s2 == STRUCTURE_EQUAL_LOW) equalCount++;
-    if (s1 == STRUCTURE_EQUAL_HIGH || s1 == STRUCTURE_EQUAL_LOW) equalCount++;
-    if (s0 == STRUCTURE_EQUAL_HIGH || s0 == STRUCTURE_EQUAL_LOW) equalCount++;
 
-    if (equalCount >= 2)
-        return TREND_RANGING;
-
-    // Bullish Trend Check: Minimum sequence HH -> HL -> HH -> HL
-    if ((s3 == STRUCTURE_HH && s2 == STRUCTURE_HL && s1 == STRUCTURE_HH && s0 == STRUCTURE_HL) ||
-        (s3 == STRUCTURE_HL && s2 == STRUCTURE_HH && s1 == STRUCTURE_HL && s0 == STRUCTURE_HH))
+    // Scan through confirmed swings chronologically (oldest first) to evaluate transitions
+    for (int i = 0; i < count; i++)
     {
-        return TREND_BULLISH;
+        SSwingPoint sw = (level == SWING_LEVEL_EXTERNAL) ? detector.GetExternalSwing(i) : detector.GetInternalSwing(i);
+        EStructureType type = GetSwingStructureType(detector, i, level, atrValue);
+        
+        if (type == STRUCTURE_EQUAL_HIGH || type == STRUCTURE_EQUAL_LOW)
+            equalCount++;
+        else
+            equalCount = 0;
+
+        if (sw.type == SWING_HIGH)
+            lastHighType = type;
+        else if (sw.type == SWING_LOW)
+            lastLowType = type;
+
+        // Apply Section 1.6 State Transition Machine
+        if (currentTrend == TREND_UNKNOWN)
+        {
+            if (lastHighType == STRUCTURE_HH && lastLowType == STRUCTURE_HL)
+                currentTrend = TREND_BULLISH;
+            else if (lastHighType == STRUCTURE_LH && lastLowType == STRUCTURE_LL)
+                currentTrend = TREND_BEARISH;
+            else if (equalCount >= 2)
+                currentTrend = TREND_RANGING;
+        }
+        else if (currentTrend == TREND_BULLISH)
+        {
+            // Bearish CHoCH: price closes below protected HL low (triggers transition state)
+            if (sw.type == SWING_LOW && type == STRUCTURE_LL)
+            {
+                currentTrend = TREND_TRANSITION;
+            }
+            else if (equalCount >= 2)
+            {
+                currentTrend = TREND_RANGING;
+            }
+        }
+        else if (currentTrend == TREND_BEARISH)
+        {
+            // Bullish CHoCH: price closes above protected LH high (triggers transition state)
+            if (sw.type == SWING_HIGH && type == STRUCTURE_HH)
+            {
+                currentTrend = TREND_TRANSITION;
+            }
+            else if (equalCount >= 2)
+            {
+                currentTrend = TREND_RANGING;
+            }
+        }
+        else if (currentTrend == TREND_TRANSITION)
+        {
+            // Transition ends when a new directional BOS confirms continuation
+            if (lastHighType == STRUCTURE_HH && lastLowType == STRUCTURE_HL)
+                currentTrend = TREND_BULLISH;
+            else if (lastHighType == STRUCTURE_LH && lastLowType == STRUCTURE_LL)
+                currentTrend = TREND_BEARISH;
+            else if (equalCount >= 2)
+                currentTrend = TREND_RANGING;
+        }
+        else if (currentTrend == TREND_RANGING)
+        {
+            // Range ends on structure break out establishing new trend
+            if (lastHighType == STRUCTURE_HH && lastLowType == STRUCTURE_HL)
+                currentTrend = TREND_BULLISH;
+            else if (lastHighType == STRUCTURE_LH && lastLowType == STRUCTURE_LL)
+                currentTrend = TREND_BEARISH;
+        }
     }
 
-    // Bearish Trend Check: Minimum sequence LL -> LH -> LL -> LH
-    if ((s3 == STRUCTURE_LL && s2 == STRUCTURE_LH && s1 == STRUCTURE_LL && s0 == STRUCTURE_LH) ||
-        (s3 == STRUCTURE_LH && s2 == STRUCTURE_LL && s1 == STRUCTURE_LH && s0 == STRUCTURE_LL))
-    {
-        return TREND_BEARISH;
-    }
-
-    return TREND_TRANSITION;
+    return currentTrend;
 }
 
 //+------------------------------------------------------------------+
 //| Update overall market trend and phase in the state               |
+//| Source: kennystrategy2.md Section 1.6 & 10.4                     |
 //+------------------------------------------------------------------+
 void CStructureEngine::UpdateTrendAndPhase(const CSwingDetector &detector, double atrValue)
 {
-    // TODO: OPEN-007 - Implement multi-timeframe phase evaluation when specification is provided
+    // Trend and phase are evaluated per-timeframe using swing structure sequence transitions.
+    // Coordinated multi-timeframe correlation is handled at the CMNSContext level.
     ENUM_MNS_TREND extTrend = DetermineTrendForLevel(detector, SWING_LEVEL_EXTERNAL, atrValue);
     ENUM_MNS_TREND intTrend = DetermineTrendForLevel(detector, SWING_LEVEL_INTERNAL, atrValue);
 
@@ -348,13 +444,144 @@ bool CStructureEngine::Update(const CSwingDetector &detector, double currentAtr)
     // Update trend and phase
     UpdateTrendAndPhase(detector, currentAtr);
 
-    // TODO: OPEN-008 - Implement full multi-factor confidence weighting when formulas are specified
-    m_state.version = 94; // Default confidence score of 94% stored in state.version
+    // Calculate and update confidence score dynamically (OPEN-008)
+    double score = CalculateConfidenceScore(detector, currentAtr);
+    m_state.version = (uint)MathRound(score);
 
     m_lastProcessedExternalCount = extCount;
     m_lastProcessedInternalCount = intCount;
 
     return true;
+}
+
+//+------------------------------------------------------------------+
+//| Calculate dynamic 0-100 multi-factor structure confidence score   |
+//| Source: kennystrategy2.md Section 1.7                            |
+//+------------------------------------------------------------------+
+double CStructureEngine::CalculateConfidenceScore(const CSwingDetector &detector, double atrValue) const
+{
+    double score = 0.0;
+
+    // 1. External structure direction (25 points)
+    if (m_state.trend == TREND_BULLISH || m_state.trend == TREND_BEARISH)
+        score += 25.0;
+    else if (m_state.trend == TREND_TRANSITION || m_state.trend == TREND_RANGING)
+        score += 12.5;
+
+    // 2. Latest confirmed BOS alignment (20 points)
+    if (m_bosAlign == ALIGN_ALIGNED)
+        score += 20.0;
+    else if (m_bosAlign == ALIGN_CONFLICT)
+        score += 0.0;
+    else // ALIGN_NEUTRAL (fallback to structure engine classification)
+    {
+        if (m_state.trend == TREND_BULLISH)
+        {
+            if (m_state.structureType == STRUCTURE_HH)
+                score += 20.0;
+            else if (m_state.structureType == STRUCTURE_LH || m_state.structureType == STRUCTURE_LL)
+                score += 0.0;
+            else
+                score += 10.0;
+        }
+        else if (m_state.trend == TREND_BEARISH)
+        {
+            if (m_state.structureType == STRUCTURE_LL)
+                score += 20.0;
+            else if (m_state.structureType == STRUCTURE_HL || m_state.structureType == STRUCTURE_HH)
+                score += 0.0;
+            else
+                score += 10.0;
+        }
+        else
+        {
+            score += 10.0;
+        }
+    }
+
+    // 3. Internal structure alignment (10 points)
+    if (m_internalAlign == ALIGN_ALIGNED)
+        score += 10.0;
+    else if (m_internalAlign == ALIGN_CONFLICT)
+        score += 0.0;
+    else // ALIGN_NEUTRAL (fallback to dynamic internal trend scan)
+    {
+        int count = detector.GetInternalSwingCount();
+        ENUM_MNS_TREND intTrend = TREND_UNKNOWN;
+        if (count >= 2)
+        {
+            intTrend = DetermineTrendForLevel(detector, SWING_LEVEL_INTERNAL, atrValue);
+        }
+        
+        if (m_state.trend == TREND_BULLISH)
+        {
+            if (intTrend == TREND_BULLISH)
+                score += 10.0;
+            else if (intTrend == TREND_BEARISH)
+                score += 0.0;
+            else
+                score += 5.0;
+        }
+        else if (m_state.trend == TREND_BEARISH)
+        {
+            if (intTrend == TREND_BEARISH)
+                score += 10.0;
+            else if (intTrend == TREND_BULLISH)
+                score += 0.0;
+            else
+                score += 5.0;
+        }
+        else
+        {
+            score += 5.0;
+        }
+    }
+
+    // 4. Order-flow alignment (15 points)
+    if (m_orderFlowAlign == ALIGN_ALIGNED)
+        score += 15.0;
+    else if (m_orderFlowAlign == ALIGN_NEUTRAL)
+        score += 7.5;
+
+    // 5. Displacement quality (10 points)
+    if (m_displacementAlign == ALIGN_ALIGNED)
+        score += 10.0;
+    else if (m_displacementAlign == ALIGN_NEUTRAL)
+        score += 5.0;
+
+    // 6. MTF agreement (10 points)
+    if (m_mtfAlign == ALIGN_ALIGNED)
+        score += 10.0;
+    else if (m_mtfAlign == ALIGN_NEUTRAL)
+        score += 5.0;
+
+    // 7. Active delivery alignment (5 points)
+    if (m_deliveryAlign == ALIGN_ALIGNED)
+        score += 5.0;
+    else if (m_deliveryAlign == ALIGN_NEUTRAL)
+        score += 2.5;
+
+    // 8. DOL directional compatibility (5 points)
+    if (m_dolAlign == ALIGN_ALIGNED)
+        score += 5.0;
+    else if (m_dolAlign == ALIGN_NEUTRAL)
+        score += 2.5;
+
+    return score;
+}
+
+//+------------------------------------------------------------------+
+//| Get confidence score rating interpretation string                |
+//| Source: kennystrategy2.md Section 1.7                            |
+//+------------------------------------------------------------------+
+string CStructureEngine::GetConfidenceInterpretation() const
+{
+    double score = GetConfidenceScore();
+    if (score >= 90.0) return "Elite";
+    if (score >= 80.0) return "Strong";
+    if (score >= 70.0) return "Valid";
+    if (score >= 60.0) return "Weak";
+    return "No trade";
 }
 
 #endif // __MNS_STRUCTURE_ENGINE_MQH__
