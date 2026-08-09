@@ -202,6 +202,51 @@ enum EDeliveryLifecycle
     DELIVERY_ARCHIVED           = 6   ///< Archived historical leg.
 };
 
+//-------------------------------------------------------------------
+/// @brief Represents the type of liquidity pool.
+//-------------------------------------------------------------------
+enum ELiquidityType
+{
+    LIQUIDITY_NONE = 0,         ///< No liquidity pool.
+    LIQUIDITY_BSL  = 1,         ///< Buy-side liquidity pool (above highs).
+    LIQUIDITY_SSL  = 2          ///< Sell-side liquidity pool (below lows).
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the source structure of a liquidity pool.
+//-------------------------------------------------------------------
+enum ELiquiditySource
+{
+    LIQ_SRC_SWING   = 0,        ///< Confirmed swing point.
+    LIQ_SRC_EQ      = 1,        ///< Equal highs/lows.
+    LIQ_SRC_SESSION = 2,        ///< Session highs/lows (London/NY/Asia).
+    LIQ_SRC_DAILY   = 3,        ///< Previous day high/low (PDH/PDL).
+    LIQ_SRC_WEEKLY  = 4         ///< Previous week high/low (PWH/PWL).
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the lifecycle state of a liquidity pool.
+//-------------------------------------------------------------------
+enum ELiquidityLifecycle
+{
+    LIQ_ACTIVE   = 0,           ///< Active, untouched liquidity pool.
+    LIQ_TOUCHED  = 1,           ///< Price touched the pool.
+    LIQ_SWEPT    = 2,           ///< Liquidity pool was swept.
+    LIQ_BROKEN   = 3,           ///< Liquidity pool was broken/invalidated.
+    LIQ_CONSUMED = 4,           ///< Liquidity pool was completely consumed.
+    LIQ_ARCHIVED = 5            ///< Archived historical pool.
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the priority ranking of a liquidity pool.
+//-------------------------------------------------------------------
+enum EPoolPriority
+{
+    PRIORITY_LOW    = 0,        ///< Low priority liquidity.
+    PRIORITY_MEDIUM = 1,        ///< Medium priority liquidity.
+    PRIORITY_HIGH   = 2         ///< High priority liquidity.
+};
+
 //+------------------------------------------------------------------+
 //| Shared Data Structures                                           |
 //+------------------------------------------------------------------+
@@ -418,6 +463,47 @@ struct SDeliveryState
         progressPercent          = 0.0;
         invalidationLevel        = 0.0;
         lastUpdatedTime          = 0;
+    }
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents a tracked liquidity pool and its properties.
+//-------------------------------------------------------------------
+struct SLiquidityPool
+{
+    int                 id;                 ///< Unique pool identifier.
+    ELiquidityType      type;               ///< BSL or SSL type.
+    ELiquiditySource    source;             ///< Source type.
+    double              level;              ///< Price level of the pool.
+    datetime            createdTime;        ///< Timestamp of pool creation.
+    int                 touchesCount;       ///< Touch count.
+    datetime            touchTimes[5];      ///< Timestamps of distinct touches.
+    ELiquidityLifecycle lifecycle;          ///< Lifecycle state.
+    double              rankingScore;       ///< 0-100 score.
+    EPoolPriority       priority;           ///< Low/Medium/High.
+    bool                active;             ///< Active status flag.
+    bool                swept;              ///< Swept status flag.
+    datetime            sweptTime;          ///< Timestamp when swept.
+    datetime            brokenTime;         ///< Timestamp when broken.
+
+    /// @brief Initializes all fields to safe defaults.
+    void Reset()
+    {
+        id           = 0;
+        type         = LIQUIDITY_NONE;
+        source       = LIQ_SRC_SWING;
+        level        = 0.0;
+        createdTime  = 0;
+        touchesCount = 0;
+        for (int i = 0; i < 5; i++)
+            touchTimes[i] = 0;
+        lifecycle    = LIQ_ACTIVE;
+        rankingScore = 0.0;
+        priority     = PRIORITY_LOW;
+        active       = true;
+        swept        = false;
+        sweptTime    = 0;
+        brokenTime   = 0;
     }
 };
 

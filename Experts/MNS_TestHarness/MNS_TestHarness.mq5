@@ -36,6 +36,7 @@
 #include "..\\..\\Include\\MNS\\CBreakDetector.mqh"
 #include "..\\..\\Include\\MNS\\COrderFlowEngine.mqh"
 #include "..\\..\\Include\\MNS\\CDeliveryStructureEngine.mqh"
+#include "..\\..\\Include\\MNS\\CLiquidityEngine.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
@@ -997,6 +998,110 @@ void RunModule006Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module 007 — CLiquidityEngine validation                         |
+//+------------------------------------------------------------------+
+void RunModule007Tests()
+{
+    Print("--- Module 007: CLiquidityEngine ---");
+
+    // Test 1: Initialize and default values
+    CLiquidityEngine liqEngine;
+    bool initRes = liqEngine.Initialize(0);
+    AssertTrue(initRes == true, "CLiquidityEngine.Initialize() returns true");
+    AssertTrue(liqEngine.GetPoolsCount() == 0, "Default pools count is 0");
+
+    CSwingDetector swingDet;
+    swingDet.Initialize(15, 5);
+    CDeliveryStructureEngine delEngine;
+    delEngine.Initialize();
+
+    #define LIQ_TEST_BARS 100
+    double   testHigh[LIQ_TEST_BARS];
+    double   testLow[LIQ_TEST_BARS];
+    double   testOpen[LIQ_TEST_BARS];
+    double   testClose[LIQ_TEST_BARS];
+    datetime testTime[LIQ_TEST_BARS];
+
+    for (int i = 0; i < LIQ_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+        testTime[i]  = (datetime)((LIQ_TEST_BARS - 1 - i) * 3600);
+    }
+
+    // Swings for BSL and SSL
+    testHigh[80] = 1.2500; // Swing High at 80
+    testLow[60]  = 1.1500; // Swing Low at 60
+
+    swingDet.Update(testHigh, testLow, testTime, LIQ_TEST_BARS, 0);
+
+    // Update liquidity engine
+    liqEngine.Update(swingDet, delEngine, testHigh, testLow, testClose, testOpen, testTime, LIQ_TEST_BARS, 0, 0.0010, 0.0002);
+    AssertTrue(liqEngine.GetPoolsCount() >= 2, "At least 2 pools detected from swings");
+    AssertTrue(liqEngine.GetNearestBSL(1.2000) == 1.2500, "Nearest BSL matches swing high at 1.2500");
+    AssertTrue(liqEngine.GetNearestSSL(1.2000) == 1.1500, "Nearest SSL matches swing low at 1.1500");
+
+    // Test 2: EQH/EQL touches
+    // Reset test arrays to base values first
+    for (int i = 0; i < LIQ_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+    }
+    // Set two swing highs far enough apart (at least 31 bars separation for depth 15 external swing high check)
+    testHigh[80] = 1.2500; // Swing High 1
+    testHigh[45] = 1.2500; // Swing High 2 (exactly equal)
+
+    swingDet.Reset();
+    swingDet.Update(testHigh, testLow, testTime, LIQ_TEST_BARS, 0);
+    liqEngine.Reset();
+    liqEngine.Update(swingDet, delEngine, testHigh, testLow, testClose, testOpen, testTime, LIQ_TEST_BARS, 0, 0.0010, 0.0002);
+
+    // Retrieve EQ pool
+    bool eqFound = false;
+    for (int k = 0; k < liqEngine.GetPoolsCount(); k++)
+    {
+        SLiquidityPool p;
+        if (liqEngine.GetPool(k, p) && p.source == LIQ_SRC_EQ && p.type == LIQUIDITY_BSL)
+        {
+            eqFound = true;
+            AssertTrue(p.touchesCount >= 2, "EQH touches count is >= 2");
+            AssertTrue(MathAbs(p.level - 1.2500) <= 0.0001, "EQH level is average of touches");
+        }
+    }
+    AssertTrue(eqFound == true, "EQH pool successfully detected");
+
+    // Test 3: BSL Sweep vs Breakout
+    // BSL level is 1.2500. Let's trigger a sweep at index 1: high goes above, but close closes back below.
+    testHigh[1]  = 1.2550; // breaches level (1.2500)
+    testClose[1] = 1.2450; // closes below level
+
+    liqEngine.Update(swingDet, delEngine, testHigh, testLow, testClose, testOpen, testTime, LIQ_TEST_BARS, 0, 0.0010, 0.0002);
+
+    bool sweepConfirmed = false;
+    for (int k = 0; k < liqEngine.GetPoolsCount(); k++)
+    {
+        SLiquidityPool p;
+        if (liqEngine.GetPool(k, p) && p.level == 1.2500)
+        {
+            AssertTrue(p.active == false, "BSL pool is no longer active after sweep");
+            AssertTrue(p.swept == true, "BSL pool is marked as swept");
+            AssertTrue(p.lifecycle == LIQ_SWEPT, "BSL pool lifecycle transitioned to LIQ_SWEPT");
+            sweepConfirmed = true;
+        }
+    }
+    AssertTrue(sweepConfirmed == true, "Sweep checked and confirmed successfully");
+
+    #undef LIQ_TEST_BARS
+
+    Print("--- Module 007 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Module INF-000 — MNSCore validation                              |
 //+------------------------------------------------------------------+
 void RunModuleINF000Tests() {
@@ -1587,6 +1692,10 @@ int OnInit() {
     Print("----------------------------------------------");
 
     RunModule006Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule007Tests();
 
     //--- Print summary
     Print("==============================================");

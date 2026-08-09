@@ -230,6 +230,38 @@ A delivery leg transitions from `DELIVERY_ACTIVE` or `DELIVERY_OBJECTIVE_REACHED
 **Question for client:**
 Is a delivery leg considered "mitigated" the moment a candle wick touches or retraces past the origin price level (without closing past it)?
 
+## Module 007 — CLiquidityEngine
+
+---
+
+### OPEN-015 — Session Boundaries Time Range and Timezone Offset
+
+**Source:** Kenny Strategy 2 - Section 4.1 & 4.2
+
+**The ambiguity:**
+Section 4 refers to "Session highs" and "Session lows" (London, New York, Asia) as BSL/SSL sources, but the exact GMT hour boundaries and daily session boundaries are not specified.
+
+**Current decision:**
+Standard session GMT ranges are implemented: Asia (00:00 - 08:00 GMT), London (08:00 - 16:00 GMT), New York (13:00 - 21:00 GMT). These are converted to broker local time using the configured `m_gmtOffset` parameter.
+
+**Question for client:**
+Do the GMT session boundaries (Asia: 00:00-08:00, London: 08:00-16:00, NY: 13:00-21:00) align with your trading definitions?
+
+---
+
+### OPEN-016 — Liquidity Pool Database Size Limit (Memory Management)
+
+**Source:** Module 007 Design / MQL5 Constraints
+
+**The ambiguity:**
+To avoid dynamic memory fragmentation in MQL5 during backtests, we propose storing pools in a fixed-size array instead of dynamic scaling.
+
+**Current decision:**
+A circular-style fixed array of 128 elements is used to store liquidity pools to guarantee O(1) allocation and maximum execution speed. When the buffer is full, the oldest inactive/broken pool is overwritten.
+
+**Question for client:**
+Is a fixed-size history of 128 active/inactive liquidity pools per chart sufficient for your analysis, or is a larger limit required?
+
 ---
 
 ## Resolution Process
