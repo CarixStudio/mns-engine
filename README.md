@@ -129,20 +129,20 @@ Every module progresses through the following lifecycle:
 
 | Module | Status |
 |---------|--------|
-| MNSTypes | Planned |
-| SwingDetector | Planned |
-| StructureEngine | Planned |
-| MarketStructureEngine | Planned |
-| OrderFlowEngine | Planned |
-| DeliveryStructureEngine | Planned |
-| LiquidityEngine | Planned |
-| POIEngine | Planned |
+| MNSTypes | Completed |
+| SwingDetector | Completed |
+| StructureEngine | Completed |
+| BreakDetector | Completed |
+| OrderFlowEngine | Completed |
+| DeliveryStructureEngine | Completed |
+| LiquidityEngine | Completed |
+| POIEngine | Completed (Verification) |
 | ObjectiveEngine | Planned |
 | ConfirmationEngine | Planned |
 | EntryEngine | Planned |
 | RiskEngine | Planned |
-| Indicator | Planned |
-| Expert Advisor | Planned |
+| Indicator Integration | Planned |
+| EA Integration | Planned |
 
 ---
 
@@ -243,15 +243,15 @@ Required validation includes:
 
 Current Phase
 
-Project Foundation
+Phase 1 — Build the Engine
 
 Current Milestone
 
-Documentation Complete
+Module 008 — POI Engine Completed (Verification)
 
 Next Milestone
 
-Core Data Models (MNSTypes)
+Module 009 — Objective Engine
 
 ---
 

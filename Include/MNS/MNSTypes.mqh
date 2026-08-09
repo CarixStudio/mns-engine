@@ -507,8 +507,88 @@ struct SLiquidityPool
     }
 };
 
+//-------------------------------------------------------------------
+/// @brief Represents the specific type of Point of Interest (POI).
+//-------------------------------------------------------------------
+enum EPoIType
+{
+    POI_NONE               = 0,  ///< No POI assigned.
+    POI_OB_BULLISH         = 1,  ///< Bullish Order Block.
+    POI_OB_BEARISH         = 2,  ///< Bearish Order Block.
+    POI_BREAKER_BULLISH    = 3,  ///< Bullish Breaker Block.
+    POI_BREAKER_BEARISH    = 4,  ///< Bearish Breaker Block.
+    POI_MITIGATION_BULLISH = 5,  ///< Bullish Mitigation Block.
+    POI_MITIGATION_BEARISH = 6,  ///< Bearish Mitigation Block.
+    POI_FVG_BULLISH        = 7,  ///< Bullish Fair Value Gap.
+    POI_FVG_BEARISH        = 8   ///< Bearish Fair Value Gap.
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the lifecycle state of a Point of Interest (POI).
+//-------------------------------------------------------------------
+enum EPoILifecycle
+{
+    POI_STATE_ACTIVE             = 0,  ///< Active and untouched.
+    POI_STATE_PARTIAL_MITIGATED  = 1,  ///< Partially mitigated (1-49% FVG or block wick touch).
+    POI_STATE_MATERIAL_MITIGATED = 2,  ///< Materially mitigated (50-99% FVG).
+    POI_STATE_FILLED             = 3,  ///< 100% filled (FVG).
+    POI_STATE_INVALIDATED        = 4,  ///< Invalidated by close beyond invalidation level.
+    POI_STATE_ARCHIVED           = 5   ///< Archived historical POI.
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the zone of a price relative to a dealing range.
+//-------------------------------------------------------------------
+enum EDealingRangeZone
+{
+    ZONE_EQUILIBRIUM = 0,  ///< 50% retracement.
+    ZONE_PREMIUM     = 1,  ///< > 50% of the range (sell zone).
+    ZONE_DISCOUNT    = 2   ///< < 50% of the range (buy zone).
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents a tracked Point of Interest (POI) and its properties.
+//-------------------------------------------------------------------
+struct SPoIDefinition
+{
+    int             id;                 ///< Unique POI identifier.
+    EPoIType        type;               ///< POI type.
+    EPoILifecycle   lifecycle;          ///< POI lifecycle state.
+    double          upperPrice;         ///< Upper price boundary of the POI.
+    double          lowerPrice;         ///< Lower price boundary of the POI.
+    double          invalidationLevel;  ///< Price level that triggers invalidation if body closes beyond it.
+    datetime        createdTime;        ///< Creation time.
+    int             barIndex;           ///< Bar index where the POI was created.
+    double          rankingScore;       ///< 0-100 quality score.
+    EPoolPriority   priority;           ///< Priority (LOW, MEDIUM, HIGH).
+    double          fillPercent;        ///< Fill percentage (specifically for FVGs, 0-100%).
+    bool            active;             ///< Active flag.
+    datetime        mitigatedTime;      ///< Timestamp when first mitigated.
+    datetime        invalidatedTime;    ///< Timestamp when invalidated.
+    
+    /// @brief Resets structure to safe defaults.
+    void Reset()
+    {
+        id                = 0;
+        type              = POI_NONE;
+        lifecycle         = POI_STATE_ACTIVE;
+        upperPrice        = 0.0;
+        lowerPrice        = 0.0;
+        invalidationLevel = 0.0;
+        createdTime       = 0;
+        barIndex          = -1;
+        rankingScore      = 0.0;
+        priority          = PRIORITY_LOW;
+        fillPercent       = 0.0;
+        active            = true;
+        mitigatedTime     = 0;
+        invalidatedTime   = 0;
+    }
+};
+
 //+------------------------------------------------------------------+
 //| End of MNSTypes.mqh                                              |
 //+------------------------------------------------------------------+
 
 #endif // __MNS_TYPES_MQH__
+

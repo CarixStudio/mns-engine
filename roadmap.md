@@ -148,13 +148,13 @@ Identifies liquidity in the market (Draw on Liquidity / DOL).
 Status: Completed. All tests passing.
 Tagged: v0.0.7
 
----
-
-## Module 008
+## Module 008 ✅
 
 POI Engine (CPOIEngine)
 
 Points of Interest detection (Order Blocks, Breaker Blocks, FVG, etc.).
+
+Status: Completed. All tests passing.
 
 ---
 

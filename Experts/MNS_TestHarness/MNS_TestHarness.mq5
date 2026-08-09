@@ -37,6 +37,7 @@
 #include "..\\..\\Include\\MNS\\COrderFlowEngine.mqh"
 #include "..\\..\\Include\\MNS\\CDeliveryStructureEngine.mqh"
 #include "..\\..\\Include\\MNS\\CLiquidityEngine.mqh"
+#include "..\\..\\Include\\MNS\\CPOIEngine.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
@@ -1102,6 +1103,105 @@ void RunModule007Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module 008 — CPOIEngine validation                               |
+//+------------------------------------------------------------------+
+void RunModule008Tests()
+{
+    Print("--- Module 008: CPOIEngine ---");
+
+    // Test 1: Initialize and default values
+    CPOIEngine poiEngine;
+    bool initRes = poiEngine.Initialize();
+    AssertTrue(initRes == true, "CPOIEngine.Initialize() returns true");
+    AssertTrue(poiEngine.GetPoIsCount() == 0, "Default POIs count is 0");
+
+    CSwingDetector swingDet;
+    swingDet.Initialize(15, 5);
+    CStructureEngine structEng;
+    structEng.Initialize(0.0);
+    CBreakDetector breakDet;
+    breakDet.Initialize();
+    CLiquidityEngine liqEngine;
+    liqEngine.Initialize(0);
+    CDeliveryStructureEngine delEngine;
+    delEngine.Initialize();
+
+    #define POI_TEST_BARS 100
+    double   testHigh[POI_TEST_BARS];
+    double   testLow[POI_TEST_BARS];
+    double   testOpen[POI_TEST_BARS];
+    double   testClose[POI_TEST_BARS];
+    datetime testTime[POI_TEST_BARS];
+
+    for (int i = 0; i < POI_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+        testTime[i]  = (datetime)((POI_TEST_BARS - 1 - i) * 3600);
+    }
+
+    // 1. Plant a Bullish FVG below the baseline low (1.1900)
+    // FVG at sequence A=22, B=21, C=20
+    // i+2 = 22, i+1 = 21, i = 20
+    // Bullish FVG: Low[20] > High[22]
+    // Let's set: High[22] = 1.1800, Low[20] = 1.1850 -> Gap = 0.0050.
+    testHigh[22] = 1.1800;
+    testLow[22] = 1.1750;
+    testOpen[22] = 1.1780;
+    testClose[22] = 1.1780;
+
+    testHigh[21] = 1.2000;
+    testLow[21] = 1.1805;
+    testOpen[21] = 1.1810;
+    testClose[21] = 1.1830;
+
+    testHigh[20] = 1.2000;
+    testLow[20] = 1.1850; // Low[20] is 1.1850, strictly > High[22] (1.1800)
+    testOpen[20] = 1.1860;
+    testClose[20] = 1.1870;
+
+    // Run update with FVG
+    poiEngine.Update(swingDet, structEng, breakDet, liqEngine, delEngine, testHigh, testLow, testClose, testOpen, testTime, POI_TEST_BARS, 0, 0.0010);
+    
+    AssertTrue(poiEngine.GetPoIsCount() >= 1, "At least 1 POI detected (FVG)");
+    
+    SPoIDefinition fvgPoi;
+    bool foundFVG = false;
+    for (int k = 0; k < poiEngine.GetPoIsCount(); k++)
+    {
+        if (poiEngine.GetPoI(k, fvgPoi) && fvgPoi.type == POI_FVG_BULLISH)
+        {
+            foundFVG = true;
+            AssertTrue(fvgPoi.lowerPrice == 1.1800, "FVG lower price is 1.1800");
+            AssertTrue(fvgPoi.upperPrice == 1.1850, "FVG upper price is 1.1850");
+            AssertTrue(fvgPoi.active == true, "FVG is active initially");
+        }
+    }
+    AssertTrue(foundFVG == true, "Bullish FVG successfully registered");
+
+    // Test 2: Invalidation of FVG via fill
+    // Low touches or goes below lower price (1.1800) on closed bar index 1
+    testLow[1] = 1.1790;
+    testClose[1] = 1.1820;
+    poiEngine.Update(swingDet, structEng, breakDet, liqEngine, delEngine, testHigh, testLow, testClose, testOpen, testTime, POI_TEST_BARS, 0, 0.0010);
+    
+    for (int k = 0; k < poiEngine.GetPoIsCount(); k++)
+    {
+        if (poiEngine.GetPoI(k, fvgPoi) && fvgPoi.type == POI_FVG_BULLISH)
+        {
+            AssertTrue(fvgPoi.active == false, "FVG is deactivated after 100% fill");
+            AssertTrue(fvgPoi.lifecycle == POI_STATE_FILLED, "FVG lifecycle is POI_STATE_FILLED");
+        }
+    }
+
+    #undef POI_TEST_BARS
+
+    Print("--- Module 008 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Module INF-000 — MNSCore validation                              |
 //+------------------------------------------------------------------+
 void RunModuleINF000Tests() {
@@ -1696,6 +1796,10 @@ int OnInit() {
     Print("----------------------------------------------");
 
     RunModule007Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule008Tests();
 
     //--- Print summary
     Print("==============================================");
