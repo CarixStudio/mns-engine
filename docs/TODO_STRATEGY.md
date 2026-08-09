@@ -174,6 +174,64 @@ Completed. Configured `SEngineConfig` inside `MNSConfig.mqh` to support these pa
 
 ---
 
+## Module 006 — CDeliveryStructureEngine
+
+---
+
+### OPEN-011 — Dependency on Liquidity & POI Engines [RESOLVED]
+
+**Source of conflict:**
+Section 3.1 states that the origin is a POI (Order Block/FVG) and the objective is a DOL (Draw on Liquidity). However, Module 007 (Liquidity Engine) and Module 008 (POI Engine) are built after Module 006.
+
+**Resolution:**
+The CDeliveryStructureEngine accepts an optional `htfDolPrice` parameter in its `Update()` method, and provides an `OverrideObjective(price)` setter. If no external target is provided, it automatically falls back to the price of the latest opposite confirmed external swing point from `CSwingDetector` as the objective target.
+
+**Implementation Status:**
+Completed. Implementations and unit tests utilize these parameters and fallbacks successfully.
+
+---
+
+### OPEN-012 — Mitigation Trigger Criteria [RESOLVED]
+
+**Source:**
+Section 3.3 includes `DELIVERY_MITIGATED` state, but does not define the exact price trigger.
+
+**Resolution:**
+A delivery leg transitions from `DELIVERY_ACTIVE` to `DELIVERY_MITIGATED` when a candle wick touches or goes past the invalidation level (the origin/protected swing price) without generating a candle body close beyond it.
+
+**Implementation Status:**
+Completed. In `CDeliveryStructureEngine.mqh`, a wick low below invalidation for bullish or wick high above invalidation for bearish triggers the transition to `DELIVERY_MITIGATED`.
+
+### OPEN-013 — Delivery Leg Replacement vs Archival Rules
+
+**Source:** Kenny Strategy 2 - Section 3.3
+
+**The ambiguity:**
+It is unclear how an active delivery leg is transitioned when a new delivery leg in the same direction or opposite direction is confirmed.
+
+**Current decision:**
+If a new BOS confirms a newer delivery leg in the same direction, the old leg becomes `DELIVERY_REPLACED`. If the direction reverses, the old leg becomes `DELIVERY_ARCHIVED`.
+
+**Question for client:**
+Does a new break of structure in the same direction replace the old delivery leg, and does a complete trend flip archive the previous leg?
+
+---
+
+### OPEN-014 — Mitigation Trigger Criteria
+
+**Source:** Kenny Strategy 2 - Section 3.3
+
+**The ambiguity:**
+Section 3.3 lists `DELIVERY_MITIGATED` as a lifecycle state, but the exact price-action trigger is not defined.
+
+**Current decision:**
+A delivery leg transitions from `DELIVERY_ACTIVE` or `DELIVERY_OBJECTIVE_REACHED` to `DELIVERY_MITIGATED` when price retraces and a candle wick touches or goes beyond the origin swing price (or the invalidation level) without generating a candle body close past it.
+
+**Question for client:**
+Is a delivery leg considered "mitigated" the moment a candle wick touches or retraces past the origin price level (without closing past it)?
+
+---
+
 ## Resolution Process
 
 When the client resolves any item above:

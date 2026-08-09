@@ -117,19 +117,25 @@ We have paused development of the strategy modules due to outstanding client amb
 
 ---
 
-## Module 005
+## Module 005 ✅
 
 Order Flow Engine (COrderFlowEngine)
 
 Consumes market structure. Evaluates order flow state.
 
+Status: Completed.
+Tagged: v0.0.5
+
 ---
 
-## Module 006
+## Module 006 ✅
 
 Delivery Structure Engine (CDeliveryStructureEngine)
 
 Consumes order flow. Evaluates delivery structure.
+
+Status: Completed.
+Tagged: v0.0.6
 
 ---
 

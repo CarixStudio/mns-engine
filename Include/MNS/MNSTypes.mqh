@@ -178,6 +178,30 @@ enum EOrderFlowState
     ORDER_FLOW_TRANSITION_BEARISH = 4   ///< Reversal warning, transitioning bearish.
 };
 
+//-------------------------------------------------------------------
+/// @brief Represents the directional bias of the price delivery.
+//-------------------------------------------------------------------
+enum EDeliveryDirection
+{
+    DELIVERY_DIR_NEUTRAL = 0,  ///< No active delivery bias.
+    DELIVERY_DIR_BULLISH = 1,  ///< Price delivery is bullish.
+    DELIVERY_DIR_BEARISH = 2   ///< Price delivery is bearish.
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the lifecycle state of a delivery structure.
+//-------------------------------------------------------------------
+enum EDeliveryLifecycle
+{
+    DELIVERY_CANDIDATE          = 0,  ///< Potential delivery leg in formation.
+    DELIVERY_ACTIVE             = 1,  ///< Confirmed active delivery leg.
+    DELIVERY_MITIGATED          = 2,  ///< Price has mitigated the origin POI/protected level.
+    DELIVERY_OBJECTIVE_REACHED  = 3,  ///< Price has hit the target liquidity/DOL level.
+    DELIVERY_INVALIDATED        = 4,  ///< Price has closed beyond the invalidation level.
+    DELIVERY_REPLACED           = 5,  ///< Replaced by a newer active delivery structure.
+    DELIVERY_ARCHIVED           = 6   ///< Archived historical leg.
+};
+
 //+------------------------------------------------------------------+
 //| Shared Data Structures                                           |
 //+------------------------------------------------------------------+
@@ -356,6 +380,44 @@ struct SOrderFlowState
         transition        = false;
         confirmed         = false;
         invalidated       = false;
+    }
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the state of the price delivery structure.
+//-------------------------------------------------------------------
+struct SDeliveryState
+{
+    EDeliveryDirection direction;               ///< Delivery direction (neutral/bullish/bearish).
+    double             originPrice;             ///< Price of the origin POI or protected swing.
+    datetime           originTime;              ///< Time when the origin swing was formed.
+    double             protectedPrice;          ///< Price of the active protected swing.
+    double             currentObjective;        ///< Price target/objective (DOL).
+    datetime           associatedBosId;         ///< Time ID of the confirming BOS.
+    datetime           associatedDisplacementId;///< Time ID of the confirming displacement bar.
+    datetime           associatedPoiId;         ///< Time ID of the POI.
+    EDeliveryLifecycle lifecycle;               ///< Current lifecycle status.
+    double             confidence;              ///< Delivery confidence score (0 to 100).
+    double             progressPercent;         ///< Leg progress percentage.
+    double             invalidationLevel;       ///< Price level for invalidation trigger.
+    datetime           lastUpdatedTime;         ///< Time of the last state update.
+
+    /// @brief Initializes all fields to safe default values.
+    void Reset()
+    {
+        direction                = DELIVERY_DIR_NEUTRAL;
+        originPrice              = 0.0;
+        originTime               = 0;
+        protectedPrice           = 0.0;
+        currentObjective         = 0.0;
+        associatedBosId          = 0;
+        associatedDisplacementId = 0;
+        associatedPoiId          = 0;
+        lifecycle                = DELIVERY_CANDIDATE;
+        confidence               = 0.0;
+        progressPercent          = 0.0;
+        invalidationLevel        = 0.0;
+        lastUpdatedTime          = 0;
     }
 };
 

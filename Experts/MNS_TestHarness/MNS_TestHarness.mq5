@@ -35,6 +35,7 @@
 #include "..\\..\\Include\\MNS\\CStructureEngine.mqh"
 #include "..\\..\\Include\\MNS\\CBreakDetector.mqh"
 #include "..\\..\\Include\\MNS\\COrderFlowEngine.mqh"
+#include "..\\..\\Include\\MNS\\CDeliveryStructureEngine.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
@@ -891,6 +892,111 @@ void RunModule005Tests() {
 }
 
 //+------------------------------------------------------------------+
+//| Module 006 — CDeliveryStructureEngine validation                 |
+//+------------------------------------------------------------------+
+void RunModule006Tests()
+{
+    Print("--- Module 006: CDeliveryStructureEngine ---");
+
+    // Test 1: Initialize and default values
+    CDeliveryStructureEngine delEngine;
+    bool initRes = delEngine.Initialize();
+    AssertTrue(initRes == true, "CDeliveryStructureEngine.Initialize() returns true");
+    AssertTrue(delEngine.GetDirection() == DELIVERY_DIR_NEUTRAL, "Default direction is NEUTRAL");
+    AssertTrue(delEngine.GetLifecycle() == DELIVERY_CANDIDATE, "Default lifecycle is CANDIDATE");
+    AssertTrue(delEngine.GetConfidenceScore() == 0.0, "Default confidence score is 0.0");
+
+    // Test 2: Active leg activation and progress happy path
+    CSwingDetector swingDet;
+    swingDet.Initialize(15, 5);
+    CStructureEngine structEng;
+    structEng.Initialize(0.0);
+    CBreakDetector breakDet;
+    breakDet.Initialize();
+    COrderFlowEngine ofEngine;
+    ofEngine.Initialize();
+
+    #define DEL_TEST_BARS 180
+    double   testHigh[DEL_TEST_BARS];
+    double   testLow[DEL_TEST_BARS];
+    double   testOpen[DEL_TEST_BARS];
+    double   testClose[DEL_TEST_BARS];
+    datetime testTime[DEL_TEST_BARS];
+
+    for (int i = 0; i < DEL_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+        testTime[i]  = (datetime)((DEL_TEST_BARS - 1 - i) * 3600);
+    }
+
+    // Swings
+    testLow[150] = 1.1400; // Swing Low 1
+    testLow[90]  = 1.1500; // Swing Low 2 (HL)
+    testHigh[120] = 1.2600; // Swing High 1
+
+    // Plant Bullish BOS (break of high at 120, price 1.2600)
+    testOpen[80]  = 1.2500;
+    testLow[80]   = 1.2500;
+    testClose[80] = 1.2750;
+    testHigh[80]  = 1.2750;
+
+    // Run detector updates
+    swingDet.Update(testHigh, testLow, testTime, DEL_TEST_BARS, 0);
+    structEng.Update(swingDet, 0.0010);
+    breakDet.Update(swingDet, structEng, testHigh, testLow, testClose, testOpen, testTime, DEL_TEST_BARS, 0, 0.0010);
+    ofEngine.Update(swingDet, structEng, breakDet, testHigh, testLow, testClose, testOpen, testTime, DEL_TEST_BARS, 0, 0.0010);
+
+    // Update delivery engine
+    delEngine.Reset();
+    bool updated = delEngine.Update(swingDet, structEng, breakDet, ofEngine, testHigh, testLow, testClose, testOpen, testTime, DEL_TEST_BARS, 0, 0.0010);
+    
+    AssertTrue(updated == true, "Update returns true on active bullish leg confirmation");
+    AssertTrue(delEngine.GetDirection() == DELIVERY_DIR_BULLISH, "Direction is BULLISH");
+    AssertTrue(delEngine.GetLifecycle() == DELIVERY_ACTIVE, "Lifecycle is ACTIVE");
+    AssertTrue(delEngine.GetState().originPrice == 1.1500, "Origin price is swing low 2 price (1.1500)");
+    AssertTrue(delEngine.GetState().invalidationLevel == 1.1500, "Invalidation level is swing low 2 price (1.1500)");
+
+    // Test 3: Objective Reached
+    // Target is swing high 1 (1.2600) by default. Let's push high above target at index 10.
+    testHigh[1]  = 1.2700;
+    testClose[1] = 1.2400; // close below target and origin to prevent invalidation/mitigation
+    
+    delEngine.Update(swingDet, structEng, breakDet, ofEngine, testHigh, testLow, testClose, testOpen, testTime, DEL_TEST_BARS, 0, 0.0010);
+    AssertTrue(delEngine.GetLifecycle() == DELIVERY_OBJECTIVE_REACHED, "Lifecycle is OBJECTIVE_REACHED after high touches objective");
+
+    // Test 4: Invalidation and mitigation
+    // Reset and confirm leg again
+    testHigh[1]  = 1.2000;
+    testClose[1] = 1.1950;
+    testLow[1]   = 1.1900;
+    delEngine.Reset();
+    delEngine.Update(swingDet, structEng, breakDet, ofEngine, testHigh, testLow, testClose, testOpen, testTime, DEL_TEST_BARS, 0, 0.0010);
+    AssertTrue(delEngine.GetLifecycle() == DELIVERY_ACTIVE, "Re-initialized to ACTIVE state");
+
+    // Wick breach low without close below protected low (1.1500) -> mitigation
+    testLow[1]   = 1.1450;
+    testClose[1] = 1.1550; // Close remains above 1.1500
+    
+    delEngine.Update(swingDet, structEng, breakDet, ofEngine, testHigh, testLow, testClose, testOpen, testTime, DEL_TEST_BARS, 0, 0.0010);
+    AssertTrue(delEngine.GetLifecycle() == DELIVERY_MITIGATED, "Lifecycle transitions to MITIGATED after wick low dips below invalidation");
+
+    // Close below invalidation level -> invalidation
+    testLow[1]   = 1.1400;
+    testClose[1] = 1.1400; // Close below 1.1500
+    
+    delEngine.Update(swingDet, structEng, breakDet, ofEngine, testHigh, testLow, testClose, testOpen, testTime, DEL_TEST_BARS, 0, 0.0010);
+    AssertTrue(delEngine.GetLifecycle() == DELIVERY_INVALIDATED, "Lifecycle transitions to INVALIDATED after body close below invalidation");
+    AssertTrue(delEngine.GetDirection() == DELIVERY_DIR_NEUTRAL, "Direction returns to NEUTRAL upon invalidation");
+
+    #undef DEL_TEST_BARS
+
+    Print("--- Module 006 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Module INF-000 — MNSCore validation                              |
 //+------------------------------------------------------------------+
 void RunModuleINF000Tests() {
@@ -1477,6 +1583,10 @@ int OnInit() {
     Print("----------------------------------------------");
 
     RunModule005Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule006Tests();
 
     //--- Print summary
     Print("==============================================");
