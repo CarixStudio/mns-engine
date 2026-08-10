@@ -264,6 +264,40 @@ Is a fixed-size history of 128 active/inactive liquidity pools per chart suffici
 
 ---
 
+## Module 009 — CObjectiveEngine
+
+---
+
+### OPEN-017 — HTF Opposing POI Score Weights
+
+**Source:** Kenny Strategy 2 - Section 6.2 & 6.3
+
+**The ambiguity:**
+Section 6.2 lists "Opposing HTF POI boundary" as a priority candidate target for the Draw on Liquidity (DOL), but the scoring weights table in Section 6.3 does not explicitly map how this candidate's structural significance or HTF significance weights are scored.
+
+**Current decision:**
+We have mapped its base scoring to a liquidity strength of 5 and HTF significance of 15.
+
+**Question for client:**
+What are the exact selection score weights (compatibility, strength, HTF significance, etc.) that should be assigned to an opposing HTF POI boundary target?
+
+---
+
+### OPEN-018 — Session Hours and Customization
+
+**Source:** Kenny Strategy 2 - Section 6.2 & Section 4.1
+
+**The ambiguity:**
+The strategy references "Session liquidity" as a candidate target for the DOL, but standard session hours (Tokyo, London, NY) are not defined.
+
+**Current decision:**
+Default session hours are implemented in the scanner logic: Tokyo (00:00 - 08:00), London (08:00 - 16:00), NY (13:00 - 21:00). These are converted to broker local timezone.
+
+**Question for client:**
+Do the default session hours (Tokyo: 00:00-08:00, London: 08:00-16:00, NY: 13:00-21:00) align with your target session parameters, and should they be made user-configurable?
+
+---
+
 ## Resolution Process
 
 When the client resolves any item above:

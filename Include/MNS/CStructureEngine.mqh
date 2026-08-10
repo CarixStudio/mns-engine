@@ -136,6 +136,25 @@ public:
     void SetDolCompatibility(ENUM_MNS_ALIGNMENT val)        { m_dolAlign = val; }
     void SetBosAlignment(ENUM_MNS_ALIGNMENT val)            { m_bosAlign = val; }
     void SetInternalStructureAlignment(ENUM_MNS_ALIGNMENT val) { m_internalAlign = val; }
+
+    /// @brief Overrides the trend state for testing purposes.
+    /// @param trend The trend to override with.
+    void OverrideTrend(ETrend trend)
+    {
+        m_state.trend = trend;
+        if (trend == TREND_BULLISH)
+        {
+            m_state.isBullishStructure = true;
+            m_state.isBearishStructure = false;
+            m_state.isRanging = false;
+        }
+        else if (trend == TREND_BEARISH)
+        {
+            m_state.isBullishStructure = false;
+            m_state.isBearishStructure = true;
+            m_state.isRanging = false;
+        }
+    }
 };
 
 //+------------------------------------------------------------------+

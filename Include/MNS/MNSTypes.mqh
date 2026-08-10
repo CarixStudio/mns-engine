@@ -586,9 +586,48 @@ struct SPoIDefinition
     }
 };
 
+
+//-------------------------------------------------------------------
+/// @brief Represents the specific type of Draw on Liquidity (DOL).
+//-------------------------------------------------------------------
+enum EDolType
+{
+    DOL_NONE              = 0,  ///< No DOL assigned.
+    DOL_EXTERNAL_SWING    = 1,  ///< External Swing High/Low.
+    DOL_EQH_EQL           = 2,  ///< Equal Highs/Lows pool.
+    DOL_PREV_DAY_HL       = 3,  ///< Previous Day High/Low.
+    DOL_PREV_WEEK_HL      = 4,  ///< Previous Week High/Low.
+    DOL_SESSION_HL        = 5,  ///< Session High/Low.
+    DOL_UNMITIGATED_EXT   = 6,  ///< Unmitigated swing extreme.
+    DOL_FVG_MIDPOINT      = 7,  ///< Fair Value Gap midpoint.
+    DOL_OB_MIDPOINT       = 8,  ///< Order Block midpoint.
+    DOL_EQUILIBRIUM       = 9   ///< Dealing range equilibrium.
+};
+
+//-------------------------------------------------------------------
+/// @brief Holds details of a tracked Draw on Liquidity (DOL) objective.
+//-------------------------------------------------------------------
+struct SDolDefinition
+{
+    double      price;              ///< Price level of the target.
+    EDolType    type;               ///< Specific DOL type.
+    double      score;              ///< Selection score (0-100).
+    datetime    createdTime;        ///< Target creation time.
+    bool        active;             ///< Active flag.
+    
+    /// @brief Resets structure to safe defaults.
+    void Reset()
+    {
+        price       = 0.0;
+        type        = DOL_NONE;
+        score       = 0.0;
+        createdTime = 0;
+        active      = false;
+    }
+};
+
 //+------------------------------------------------------------------+
 //| End of MNSTypes.mqh                                              |
 //+------------------------------------------------------------------+
 
 #endif // __MNS_TYPES_MQH__
-

@@ -38,6 +38,7 @@
 #include "..\\..\\Include\\MNS\\CDeliveryStructureEngine.mqh"
 #include "..\\..\\Include\\MNS\\CLiquidityEngine.mqh"
 #include "..\\..\\Include\\MNS\\CPOIEngine.mqh"
+#include "..\\..\\Include\\MNS\\CObjectiveEngine.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
@@ -1202,6 +1203,100 @@ void RunModule008Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module 009 — CObjectiveEngine validation                         |
+//+------------------------------------------------------------------+
+void RunModule009Tests()
+{
+    Print("--- Module 009: CObjectiveEngine ---");
+
+    CObjectiveEngine objEngine;
+    bool initRes = objEngine.Initialize();
+    AssertTrue(initRes == true, "CObjectiveEngine.Initialize() returns true");
+    AssertTrue(objEngine.GetDolPrice() == DBL_MAX, "Default DOL price is MNS_INVALID_PRICE");
+    AssertTrue(objEngine.GetCandidateCount() == 0, "Default candidates count is 0");
+
+    CSwingDetector swingDet;
+    swingDet.Initialize(15, 5);
+    CStructureEngine structEng;
+    structEng.Initialize(0.0);
+    CBreakDetector breakDet;
+    breakDet.Initialize();
+    COrderFlowEngine ofEngine;
+    ofEngine.Initialize();
+    CDeliveryStructureEngine delEngine;
+    delEngine.Initialize();
+    CLiquidityEngine liqEngine;
+    liqEngine.Initialize(0);
+    CPOIEngine poiEngine;
+    poiEngine.Initialize();
+
+    #define OBJ_TEST_BARS 100
+    double   testHigh[OBJ_TEST_BARS];
+    double   testLow[OBJ_TEST_BARS];
+    double   testOpen[OBJ_TEST_BARS];
+    double   testClose[OBJ_TEST_BARS];
+    datetime testTime[OBJ_TEST_BARS];
+
+    // Set times to span multiple days
+    MqlDateTime dt;
+    dt.year = 2026;
+    dt.mon = 8;
+    dt.day = 10;
+    dt.hour = 23;
+    dt.min = 0;
+    dt.sec = 0;
+
+    for (int i = 0; i < OBJ_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+        
+        datetime t = StructToTime(dt);
+        testTime[i] = t;
+        
+        dt.hour--;
+        if (dt.hour < 0)
+        {
+            dt.hour = 23;
+            dt.day--;
+        }
+    }
+
+    // Set previous day (Day 9) high to 1.2200 and low to 1.1800
+    testHigh[30] = 1.2200;
+    testLow[30] = 1.1800;
+
+    // Set structure trend to bullish
+    structEng.OverrideTrend(TREND_BULLISH);
+
+    // Update the objective engine (passed ATR is 0.0050)
+    objEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, OBJ_TEST_BARS, 0, 0.0050);
+
+    AssertTrue(objEngine.GetCandidateCount() > 0, "Candidates gathered from previous day scans");
+    
+    SDolDefinition activeDol = objEngine.GetActiveDol();
+    AssertTrue(activeDol.active == true, "Active DOL is selected");
+    AssertTrue(activeDol.price == 1.2200, "Active DOL price matches PDH (1.2200)");
+    AssertTrue(activeDol.type == DOL_PREV_DAY_HL, "Active DOL type is DOL_PREV_DAY_HL");
+
+    // Test 2: Consumption of active DOL
+    // Bullish target (1.2200) is hit when index 1 high >= 1.2200
+    testHigh[1] = 1.2250;
+    testClose[1] = 1.2100;
+    
+    objEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, OBJ_TEST_BARS, 0, 0.0050);
+    
+    activeDol = objEngine.GetActiveDol();
+    AssertTrue(activeDol.active == false || activeDol.price == DBL_MAX, "Active DOL consumed/deactivated when price hits target");
+
+    #undef OBJ_TEST_BARS
+
+    Print("--- Module 009 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Module INF-000 — MNSCore validation                              |
 //+------------------------------------------------------------------+
 void RunModuleINF000Tests() {
@@ -1800,6 +1895,10 @@ int OnInit() {
     Print("----------------------------------------------");
 
     RunModule008Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule009Tests();
 
     //--- Print summary
     Print("==============================================");
