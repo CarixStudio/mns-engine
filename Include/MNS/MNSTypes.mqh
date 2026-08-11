@@ -746,6 +746,52 @@ struct SEntrySignal
     }
 };
 
+//-------------------------------------------------------------------
+//| Holds the results of a pre-trade risk and sizing calculation.
+//-------------------------------------------------------------------
+struct SRiskSizingResult
+{
+    bool        approved;               ///< True if RR >= 1.50R and volume sizing succeeded.
+    double      entryPrice;             ///< Trade entry price level.
+    double      stopLoss;               ///< Calculated Stop Loss price with buffer.
+    double      takeProfit;             ///< Calculated Take Profit price matching DOL.
+    double      volume;                 ///< Sized trade volume in lots (floored to step).
+    double      riskAmount;             ///< Total amount at risk in account deposit currency.
+    double      expectedRr;             ///< Sized Reward-to-Risk ratio.
+
+    /// @brief Resets structure to safe defaults.
+    void Reset()
+    {
+        approved    = false;
+        entryPrice  = MNS_INVALID_PRICE;
+        stopLoss    = MNS_INVALID_PRICE;
+        takeProfit  = MNS_INVALID_PRICE;
+        volume      = 0.0;
+        riskAmount  = 0.0;
+        expectedRr  = 0.0;
+    }
+};
+
+//-------------------------------------------------------------------
+//| Holds active risk management actions for a position.
+//-------------------------------------------------------------------
+struct SRiskManagementAction
+{
+    bool        closeFully;             ///< True if emergency exit rule triggered.
+    bool        closePartially;         ///< True if +1.0R partial close triggered.
+    double      partialVolume;          ///< Volume to close during partial close (50%).
+    double      newStopLoss;            ///< New stop loss level if trailing stop tightens.
+
+    /// @brief Resets structure to safe defaults.
+    void Reset()
+    {
+        closeFully     = false;
+        closePartially = false;
+        partialVolume  = 0.0;
+        newStopLoss    = MNS_INVALID_PRICE;
+    }
+};
+
 //+------------------------------------------------------------------+
 //| End of MNSTypes.mqh                                              |
 //+------------------------------------------------------------------+

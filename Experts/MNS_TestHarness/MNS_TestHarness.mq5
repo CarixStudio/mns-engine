@@ -41,6 +41,7 @@
 #include "..\\..\\Include\\MNS\\CObjectiveEngine.mqh"
 #include "..\\..\\Include\\MNS\\CConfirmationEngine.mqh"
 #include "..\\..\\Include\\MNS\\CEntryEngine.mqh"
+#include "..\\..\\Include\\MNS\\CRiskEngine.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
@@ -69,6 +70,26 @@ void AssertTrue(bool condition, const string testName) {
         g_testsPassed++;
     } else {
         Print("  [FAIL] ", testName);
+        g_testsFailed++;
+    }
+}
+
+void AssertEqualDouble(double actual, double expected, const string testName) {
+    if (MathAbs(actual - expected) < 0.00001) {
+        Print("  [PASS] ", testName);
+        g_testsPassed++;
+    } else {
+        Print("  [FAIL] ", testName, " - Expected: ", DoubleToString(expected, 5), ", Actual: ", DoubleToString(actual, 5));
+        g_testsFailed++;
+    }
+}
+
+void AssertEqualInt(int actual, int expected, const string testName) {
+    if (actual == expected) {
+        Print("  [PASS] ", testName);
+        g_testsPassed++;
+    } else {
+        Print("  [FAIL] ", testName, " - Expected: ", IntegerToString(expected), ", Actual: ", IntegerToString(actual));
         g_testsFailed++;
     }
 }
@@ -1624,6 +1645,114 @@ void RunModule011Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module 012 — CRiskEngine validation                              |
+//+------------------------------------------------------------------+
+void RunModule012Tests()
+{
+    Print("--- Module 012: CRiskEngine ---");
+
+    CRiskEngine riskEngine;
+    bool initRes = riskEngine.Initialize(1.0, 0.25, 2.0, 5.0); // default 1%, min 0.25%, max 2%, max DD 5%
+    AssertTrue(initRes == true, "CRiskEngine.Initialize() returns true");
+
+    string symbol = Symbol();
+
+    // Test 1: Pre-Trade Sizing SL Buffer & Approved Sizing
+    // Buy setup: entry = 1.2000, invalidation = 1.1900, dolPrice = 1.2200, atr = 0.0050.
+    // StopBuffer = max(2*point, 0.20*0.0050) = 0.0010 (on GBPUSD/EURUSD point is 0.00001)
+    // Expected SL = 1.1900 - 0.0010 = 1.1890.
+    // RiskDistance = 0.0110. RewardDistance = 0.0200. RR = 1.818 >= 1.50R.
+    SRiskSizingResult res = riskEngine.SizePreTrade(CONFIRM_DIR_BULLISH, 1.2000, 1.1900, 1.2200, 0.0050, 1.0, 10000.0, symbol);
+    AssertTrue(res.approved == true, "Pre-trade sizing is approved when RR >= 1.50R");
+    AssertEqualDouble(res.entryPrice, 1.2000, "Entry price is 1.2000");
+    AssertEqualDouble(res.stopLoss, 1.1890, "Calculated Stop Loss matches 1.1890");
+    AssertEqualDouble(res.takeProfit, 1.2200, "Take profit matches DOL target 1.2200");
+    AssertTrue(res.expectedRr >= 1.80, "Expected RR is calculated correctly");
+    AssertTrue(res.volume > 0.0, "Sized volume is greater than 0.0");
+    AssertTrue(res.riskAmount == 100.0, "Risk amount is 100.0 (1% of 10000)");
+
+    // Test 2: Pre-Trade Sizing RR Rejection
+    // dolPrice = 1.2150 -> RewardDistance = 0.0150. RiskDistance = 0.0110. RR = 1.36 < 1.50R.
+    res = riskEngine.SizePreTrade(CONFIRM_DIR_BULLISH, 1.2000, 1.1900, 1.2150, 0.0050, 1.0, 10000.0, symbol);
+    AssertTrue(res.approved == false, "Pre-trade sizing is rejected when RR < 1.50R");
+
+    // Test 3: Pre-Trade Sizing Sell Setup
+    // entry = 1.2000, invalidation = 1.2100, dolPrice = 1.1800, atr = 0.0050.
+    // StopBuffer = 0.0010. Expected SL = 1.2100 + 0.0010 = 1.2110.
+    // RiskDistance = 0.0110. RewardDistance = 0.0200. RR = 1.818 >= 1.50R.
+    res = riskEngine.SizePreTrade(CONFIRM_DIR_BEARISH, 1.2000, 1.2100, 1.1800, 0.0050, 1.0, 10000.0, symbol);
+    AssertTrue(res.approved == true, "Pre-trade sizing is approved for Bearish Setup");
+    AssertEqualDouble(res.stopLoss, 1.2110, "Bearish Stop Loss is 1.2110");
+    AssertEqualDouble(res.takeProfit, 1.1800, "Bearish Take Profit is 1.1800");
+
+    // Test 4: Active Position Management — Partial Close (+1.0R)
+    riskEngine.ResetPositionTracking();
+    // Entry = 1.2000, Original SL = 1.1890. RiskDistance = 0.0110. Current Vol = 0.10.
+    // Bid = 1.2100 (progress = 0.0100 < 1.0R) -> No partial close.
+    SRiskManagementAction act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.10, 1.1890, 1.1890, 1.2100, 1.2101, 0.0050, DELIVERY_ACTIVE, false, false, false, 0.0, symbol);
+    AssertTrue(act.closePartially == false, "Partial close is false before reaching +1.0R");
+
+    // Bid = 1.2110 (progress = 0.0110 == 1.0R) -> Partial close triggered!
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.10, 1.1890, 1.1890, 1.2110, 1.2111, 0.0050, DELIVERY_ACTIVE, false, false, false, 0.0, symbol);
+    AssertTrue(act.closePartially == true, "Partial close is true when progress reaches +1.0R");
+    AssertEqualDouble(act.partialVolume, 0.05, "Partial close volume is 50% of 0.10 (0.05)");
+
+    // Bid = 1.2120 (progress > 1.0R) -> No partial close (should trigger only once).
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.1890, 1.2120, 1.2121, 0.0050, DELIVERY_ACTIVE, false, false, false, 0.0, symbol);
+    AssertTrue(act.closePartially == false, "Partial close does not trigger again once m_hasPartialClosed is true");
+
+    // Test 5: Active Position Management — Trailing Stop (+1.5R)
+    // Bid = 1.2160 (progress = 0.0160 < 1.65 pips / +1.5R) -> Trailing stop not active.
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.1890, 1.2160, 1.2161, 0.0050, DELIVERY_ACTIVE, false, false, false, 0.0, symbol);
+    AssertTrue(act.newStopLoss == MNS_INVALID_PRICE, "Trailing stop is inactive before +1.5R");
+
+    // Bid = 1.2165 (progress = 0.0165 == 1.5R) -> Trailing stop active!
+    // TrailingSL = Bid - ATR = 1.2165 - 0.0050 = 1.2115.
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.1890, 1.2165, 1.2166, 0.0050, DELIVERY_ACTIVE, false, false, false, 0.0, symbol);
+    AssertEqualDouble(act.newStopLoss, 1.2115, "Trailing stop activates at +1.5R, SL set to Bid - ATR");
+
+    // Test 6: Trailing Stop Incremental Tier (+2.0R)
+    // Bid = 1.2210 (progress = 1.90R < 2.0R) -> No update yet (remains in tier 0).
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.2115, 1.2210, 1.2211, 0.0050, DELIVERY_ACTIVE, false, false, false, 0.0, symbol);
+    AssertTrue(act.newStopLoss == MNS_INVALID_PRICE, "Trailing stop does not update between tiers (+1.90R)");
+
+    // Bid = 1.2220 (progress = 2.0R) -> Next tier update!
+    // TrailingSL = Bid - ATR = 1.2220 - 0.0050 = 1.2170.
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.2115, 1.2220, 1.2221, 0.0050, DELIVERY_ACTIVE, false, false, false, 0.0, symbol);
+    AssertEqualDouble(act.newStopLoss, 1.2170, "Trailing stop updates at next +0.5R milestone (+2.0R tier)");
+
+    // Test 7: Trailing Stop Never Worsen
+    // Bid drops back to 1.2180.
+    // TrailingSL candidate = 1.2180 - 0.0050 = 1.2130.
+    // Since 1.2130 < 1.2170 (current stop), we must not update (never worsen).
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.2170, 1.2180, 1.2181, 0.0050, DELIVERY_ACTIVE, false, false, false, 0.0, symbol);
+    AssertTrue(act.newStopLoss == MNS_INVALID_PRICE, "Trailing stop does not move backwards when price retraces");
+
+    // Test 8: Emergency Exits
+    // A. DOL Reached
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.2170, 1.2220, 1.2221, 0.0050, DELIVERY_ACTIVE, true, false, false, 0.0, symbol);
+    AssertTrue(act.closeFully == true, "Emergency exit triggered when DOL is reached");
+
+    // B. DOL Invalidated
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.2170, 1.2220, 1.2221, 0.0050, DELIVERY_ACTIVE, false, true, false, 0.0, symbol);
+    AssertTrue(act.closeFully == true, "Emergency exit triggered when DOL is invalidated");
+
+    // C. Delivery Invalidated
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.2170, 1.2220, 1.2221, 0.0050, DELIVERY_INVALIDATED, false, false, false, 0.0, symbol);
+    AssertTrue(act.closeFully == true, "Emergency exit triggered when Delivery structure is invalidated");
+
+    // D. MTF Reversal
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.2170, 1.2220, 1.2221, 0.0050, DELIVERY_ACTIVE, false, false, true, 0.0, symbol);
+    AssertTrue(act.closeFully == true, "Emergency exit triggered when MTF reversal occurs");
+
+    // E. Daily Drawdown Protection
+    act = riskEngine.UpdateActiveManagement(CONFIRM_DIR_BULLISH, 1.2000, 0.05, 1.1890, 1.2170, 1.2220, 1.2221, 0.0050, DELIVERY_ACTIVE, false, false, false, 5.5, symbol);
+    AssertTrue(act.closeFully == true, "Emergency exit triggered when Daily drawdown percent (5.5%) exceeds limit (5.0%)");
+
+    Print("--- Module 012 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Module INF-000 — MNSCore validation                              |
 //+------------------------------------------------------------------+
 void RunModuleINF000Tests() {
@@ -2234,6 +2363,10 @@ int OnInit() {
     Print("----------------------------------------------");
 
     RunModule011Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule012Tests();
 
     //--- Print summary
     Print("==============================================");

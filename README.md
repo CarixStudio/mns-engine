@@ -139,7 +139,7 @@ Every module progresses through the following lifecycle:
 | POIEngine | Completed |
 | ObjectiveEngine | Completed |
 | ConfirmationEngine | Completed |
-| EntryEngine | Planned |
+| EntryEngine | Completed |
 | RiskEngine | Planned |
 | Indicator Integration | Planned |
 | EA Integration | Planned |
