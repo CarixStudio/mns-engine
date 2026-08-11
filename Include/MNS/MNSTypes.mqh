@@ -697,6 +697,55 @@ struct SConfirmationState
     }
 };
 
+//-------------------------------------------------------------------
+//| Represents the lifecycle state of a trade entry signal.
+//-------------------------------------------------------------------
+enum EEntryState
+{
+    ENTRY_STATE_NONE        = 0,  ///< No entry signal.
+    ENTRY_STATE_ACTIVE      = 1,  ///< Active trade signal, pending fill.
+    ENTRY_STATE_EXECUTED    = 2,  ///< Trade executed and signal consumed.
+    ENTRY_STATE_EXPIRED     = 3,  ///< Signal expired (5-bar execution time elapsed).
+    ENTRY_STATE_INVALIDATED = 4,  ///< Signal invalidated due to POI/DOL/Delivery breach.
+    ENTRY_STATE_CANCELLED   = 5   ///< Cancelled due to spread, risk, or other filter.
+};
+
+//-------------------------------------------------------------------
+//| Holds the parameters of a verified trade entry signal.
+//-------------------------------------------------------------------
+struct SEntrySignal
+{
+    datetime                id;                 ///< Unique ID of the signal (matches triggerTime).
+    EEntryState             state;              ///< Current signal state.
+    EConfirmationDirection  direction;          ///< Trade direction.
+    double                  entryPrice;         ///< Price at trigger close.
+    double                  stopLoss;           ///< Stop Loss level.
+    double                  takeProfit;         ///< Take Profit level (active DOL).
+    datetime                triggerTime;        ///< Time when confirming candle closed.
+    datetime                expirationTime;     ///< Time when signal will expire.
+    double                  confidenceScore;    ///< Copy of confirmation engine confidence score.
+    bool                    consumed;           ///< Execution status flag.
+    int                     associatedPoiId;    ///< Associated POI ID.
+    int                     associatedSweepId;  ///< Associated Liquidity Sweep ID.
+
+    /// @brief Resets structure to safe defaults.
+    void Reset()
+    {
+        id                = 0;
+        state              = ENTRY_STATE_NONE;
+        direction          = CONFIRM_DIR_NEUTRAL;
+        entryPrice         = MNS_INVALID_PRICE;
+        stopLoss           = MNS_INVALID_PRICE;
+        takeProfit         = MNS_INVALID_PRICE;
+        triggerTime        = MNS_INVALID_TIME;
+        expirationTime     = MNS_INVALID_TIME;
+        confidenceScore    = 0.0;
+        consumed           = false;
+        associatedPoiId    = 0;
+        associatedSweepId  = 0;
+    }
+};
+
 //+------------------------------------------------------------------+
 //| End of MNSTypes.mqh                                              |
 //+------------------------------------------------------------------+

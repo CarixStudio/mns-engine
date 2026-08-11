@@ -40,6 +40,7 @@
 #include "..\\..\\Include\\MNS\\CPOIEngine.mqh"
 #include "..\\..\\Include\\MNS\\CObjectiveEngine.mqh"
 #include "..\\..\\Include\\MNS\\CConfirmationEngine.mqh"
+#include "..\\..\\Include\\MNS\\CEntryEngine.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
@@ -1441,6 +1442,188 @@ void RunModule010Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module 011 — CEntryEngine validation                             |
+//+------------------------------------------------------------------+
+void RunModule011Tests()
+{
+    Print("--- Module 011: CEntryEngine ---");
+
+    CEntryEngine entryEngine;
+    bool initRes = entryEngine.Initialize(50.0); // max 50 points spread
+    AssertTrue(initRes == true, "CEntryEngine.Initialize() returns true");
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_NONE, "Default signal state is ENTRY_STATE_NONE");
+    AssertTrue(entryEngine.HasActiveSignal() == false, "Default HasActiveSignal() is false");
+
+    // Initialize mock dependencies
+    CSwingDetector swingDet;
+    swingDet.Initialize(15, 5);
+    CStructureEngine structEng;
+    structEng.Initialize(0.0);
+    CBreakDetector breakDet;
+    breakDet.Initialize();
+    COrderFlowEngine ofEngine;
+    ofEngine.Initialize();
+    CDeliveryStructureEngine delEngine;
+    delEngine.Initialize();
+    CLiquidityEngine liqEngine;
+    liqEngine.Initialize(0);
+    CPOIEngine poiEngine;
+    poiEngine.Initialize();
+    CObjectiveEngine objEngine;
+    objEngine.Initialize();
+    CConfirmationEngine confEngine;
+    confEngine.Initialize();
+
+    #define ENTRY_TEST_BARS 100
+    double   testHigh[ENTRY_TEST_BARS];
+    double   testLow[ENTRY_TEST_BARS];
+    double   testOpen[ENTRY_TEST_BARS];
+    double   testClose[ENTRY_TEST_BARS];
+    datetime testTime[ENTRY_TEST_BARS];
+
+    // Set times to span multiple days
+    MqlDateTime dt;
+    dt.year = 2026;
+    dt.mon = 8;
+    dt.day = 10;
+    dt.hour = 23;
+    dt.min = 0;
+    dt.sec = 0;
+    datetime baseTime = StructToTime(dt);
+
+    for (int i = 0; i < ENTRY_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+        testTime[i]  = baseTime;
+        baseTime -= 3600; // 1 hour steps backwards
+    }
+
+    // Set up a valid Bullish Confirmation
+    // A. Objective Engine needs a target (DOL)
+    testHigh[30] = 1.2200;
+    testLow[30] = 1.1800;
+    structEng.OverrideTrend(TREND_BULLISH);
+    objEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+    testHigh[30] = 1.2000; // Revert to avoid swing detection interference
+
+    // B. Swing detection & Break detection for BOS confirmation
+    testHigh[60] = 1.2100;
+    swingDet.Update(testHigh, testLow, testTime, ENTRY_TEST_BARS, 0);
+    structEng.Update(swingDet, 0.0050);
+    structEng.OverrideTrend(TREND_BULLISH);
+
+    // Now trigger a break: close[1] = 1.2150 (above 1.2100)
+    testClose[1] = 1.2150;
+    testOpen[1] = 1.2050;
+    testHigh[1] = 1.2160;
+    testLow[1] = 1.2040;
+    breakDet.Update(swingDet, structEng, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+    ofEngine.Update(swingDet, structEng, breakDet, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+    delEngine.Update(swingDet, structEng, breakDet, ofEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+    poiEngine.Update(swingDet, structEng, breakDet, liqEngine, delEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+
+    // Test 1: Generate Pending confirmation state
+    testLow[1] = 1.1950;
+    testClose[1] = 1.2000;
+    confEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, objEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+    AssertTrue(confEngine.GetConfirmationState() == CONFIRMATION_STATE_PENDING, "Setup is PENDING after POI touch");
+
+    // Test 2: Trigger Confirmation Engine to CONFIRMED
+    testOpen[1] = 1.2000;
+    testClose[1] = 1.2000;
+    testLow[1] = 1.1900;
+    testHigh[1] = 1.2000;
+    confEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, objEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+    AssertTrue(confEngine.GetConfirmationState() == CONFIRMATION_STATE_CONFIRMED, "Setup is CONFIRMED in confirmation engine");
+
+    // Test 3: CEntryEngine Updates to ACTIVE (Spread and RR filters are met)
+    bool updateRes = entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 10.0);
+    AssertTrue(updateRes == true, "CEntryEngine.Update() returns true when active signal is generated");
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_ACTIVE, "Signal state is ENTRY_STATE_ACTIVE");
+    AssertTrue(entryEngine.HasActiveSignal() == true, "HasActiveSignal() is true");
+    SEntrySignal sig = entryEngine.GetActiveSignal();
+    AssertTrue(sig.entryPrice == 1.2000, "Signal entry price matches trigger price");
+    AssertTrue(sig.stopLoss == 1.2100, "Signal Stop Loss matches confirmation invalidation level");
+    AssertTrue(sig.takeProfit == 1.2200, "Signal Take Profit matches DOL price");
+
+    // Test 4: Spread Filter Rejection
+    entryEngine.Reset();
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_NONE, "Signal state is NONE after Reset");
+    updateRes = entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 60.0);
+    AssertTrue(updateRes == false, "Update returns false when signal is rejected due to high spread");
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_NONE, "Signal state remains NONE");
+
+    // Test 5: Risk-Reward Filter Rejection
+    testHigh[30] = 1.2120;
+    swingDet.Reset(); // Clear swings so objEngine doesn't select 1.2100
+    objEngine.Reset();
+    objEngine.Initialize();
+    objEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+    testHigh[30] = 1.2000; // revert
+    
+    updateRes = entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 10.0);
+    AssertTrue(updateRes == false, "Update returns false when signal is rejected due to low RR");
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_NONE, "Signal state remains NONE");
+
+    // Revert DOL to 1.2200
+    testHigh[30] = 1.2200;
+    objEngine.Reset();
+    objEngine.Initialize();
+    objEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
+    testHigh[30] = 1.2000; // revert
+
+    // Test 6: Invalidation of active signal due to MTF Reversal
+    updateRes = entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 10.0);
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_ACTIVE, "Signal is active again");
+    
+    structEng.OverrideTrend(TREND_BEARISH);
+    updateRes = entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 10.0);
+    AssertTrue(updateRes == true, "Update returns true when active signal invalidates");
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_INVALIDATED, "Active signal transitions to ENTRY_STATE_INVALIDATED on MTF reversal");
+    
+    structEng.OverrideTrend(TREND_BULLISH);
+
+    // Test 7: Signal Expiration (5 bars)
+    entryEngine.Reset();
+    entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 10.0);
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_ACTIVE, "Signal is active for expiration test");
+    
+    datetime originalTriggerTime = confEngine.GetState().triggerTime;
+    for (int i = 0; i < ENTRY_TEST_BARS; i++)
+    {
+        testTime[i] += 5 * 3600;
+    }
+    updateRes = entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 10.0);
+    AssertTrue(updateRes == true, "Update returns true when signal expires");
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_EXPIRED, "Signal is EXPIRED");
+
+    for (int i = 0; i < ENTRY_TEST_BARS; i++)
+    {
+        testTime[i] -= 5 * 3600;
+    }
+
+    // Test 8: Duplicate Prevention
+    entryEngine.Reset();
+    entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 10.0);
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_ACTIVE, "Signal active before execution");
+    
+    bool consumeRes = entryEngine.MarkSignalConsumed();
+    AssertTrue(consumeRes == true, "MarkSignalConsumed returns true");
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_EXECUTED, "Signal state is ENTRY_STATE_EXECUTED");
+    AssertTrue(entryEngine.IsConsumed(originalTriggerTime) == true, "Signal ID is marked as consumed in history");
+
+    entryEngine.Reset();
+    entryEngine.Update(confEngine, objEngine, structEng, delEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 10.0);
+    AssertTrue(entryEngine.GetActiveSignalState() == ENTRY_STATE_NONE, "Signal state remains NONE due to duplicate prevention blocking");
+
+    #undef ENTRY_TEST_BARS
+    Print("--- Module 011 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Module INF-000 — MNSCore validation                              |
 //+------------------------------------------------------------------+
 void RunModuleINF000Tests() {
@@ -2047,6 +2230,10 @@ int OnInit() {
     Print("----------------------------------------------");
 
     RunModule010Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule011Tests();
 
     //--- Print summary
     Print("==============================================");
