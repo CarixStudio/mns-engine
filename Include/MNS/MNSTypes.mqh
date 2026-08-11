@@ -626,6 +626,77 @@ struct SDolDefinition
     }
 };
 
+//-------------------------------------------------------------------
+/// @brief Represents the current validation state of a trade confirmation.
+//-------------------------------------------------------------------
+enum EConfirmationState
+{
+    CONFIRMATION_STATE_NONE        = 0,  ///< No setup active or validated.
+    CONFIRMATION_STATE_PENDING     = 1,  ///< Price touched POI, waiting for confirmation.
+    CONFIRMATION_STATE_CONFIRMED   = 2,  ///< Setup fully validated and confirmed.
+    CONFIRMATION_STATE_INVALIDATED = 3   ///< Setup invalidated.
+};
+
+//-------------------------------------------------------------------
+/// @brief Represents the direction of a trade confirmation.
+//-------------------------------------------------------------------
+enum EConfirmationDirection
+{
+    CONFIRM_DIR_NEUTRAL = 0,  ///< Neutral or invalid direction.
+    CONFIRM_DIR_BULLISH = 1,  ///< Bullish setup confirmed.
+    CONFIRM_DIR_BEARISH = 2   ///< Bearish setup confirmed.
+};
+
+//-------------------------------------------------------------------
+/// @brief Holds details of an active trade confirmation state.
+//-------------------------------------------------------------------
+struct SConfirmationState
+{
+    EConfirmationState      state;                  ///< Current validation state.
+    EConfirmationDirection  direction;              ///< Confirmation direction.
+    double                  confidenceScore;        ///< Setup quality score (60-100).
+    double                  triggerPrice;           ///< Price at trigger close.
+    datetime                triggerTime;            ///< Datetime of trigger close.
+    double                  invalidationLevel;      ///< Protected swing validation level.
+    
+    // Components
+    bool                    hasPoiInteraction;      ///< True if touched POI.
+    bool                    hasLiquidityEvent;      ///< True if SSL/BSL swept.
+    bool                    hasStrongRejection;     ///< True if rejection wick occurred.
+    bool                    hasChochTrigger;        ///< True if CHoCH broke.
+    bool                    hasBosTrigger;          ///< True if BOS broke.
+    
+    // Reference details
+    int                     associatedPoiId;        ///< ID of active POI.
+    EPoIType                associatedPoiType;      ///< Type of active POI.
+    int                     associatedSweepId;      ///< ID of swept pool.
+    double                  breakPrice;             ///< Price of BOS/CHoCH.
+    datetime                breakTime;              ///< Time of BOS/CHoCH.
+    
+    /// @brief Resets structure to safe defaults.
+    void Reset()
+    {
+        state                  = CONFIRMATION_STATE_NONE;
+        direction              = CONFIRM_DIR_NEUTRAL;
+        confidenceScore        = 0.0;
+        triggerPrice           = MNS_INVALID_PRICE;
+        triggerTime            = MNS_INVALID_TIME;
+        invalidationLevel      = MNS_INVALID_PRICE;
+        
+        hasPoiInteraction      = false;
+        hasLiquidityEvent      = false;
+        hasStrongRejection     = false;
+        hasChochTrigger        = false;
+        hasBosTrigger          = false;
+        
+        associatedPoiId        = 0;
+        associatedPoiType      = POI_NONE;
+        associatedSweepId      = 0;
+        breakPrice             = MNS_INVALID_PRICE;
+        breakTime              = MNS_INVALID_TIME;
+    }
+};
+
 //+------------------------------------------------------------------+
 //| End of MNSTypes.mqh                                              |
 //+------------------------------------------------------------------+

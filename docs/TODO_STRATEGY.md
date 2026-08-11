@@ -298,6 +298,25 @@ Do the default session hours (Tokyo: 00:00-08:00, London: 08:00-16:00, NY: 13:00
 
 ---
 
+## Module 010 — CConfirmationEngine
+
+---
+
+### OPEN-019 — Confirmation Candle Rejection Criteria
+
+**Source:** Kenny Strategy 2 - Section 7.5
+
+**The ambiguity:**
+The strategy references "Strong rejection" as a mandatory confirmation filter when a liquidity sweep is absent, but it does not specify a mathematical or visual rule for what constitutes a strong candlestick rejection.
+
+**Current decision:**
+We have inferred a standard wick-to-candle-range calculation: a bullish rejection requires the lower wick to be >= 50% of the total candle high-low range and the candle to close in the upper half of its range. A bearish rejection requires the upper wick to be >= 50% of the total candle range and the candle to close in the lower half.
+
+**Question for client:**
+What are the exact candlestick mathematical rules (e.g., lower/upper wick to body ratio, pin bar patterns, or engulfing closes) that define a "Strong rejection" for execution confirmation?
+
+---
+
 ## Resolution Process
 
 When the client resolves any item above:

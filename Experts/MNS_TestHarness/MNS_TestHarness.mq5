@@ -39,6 +39,7 @@
 #include "..\\..\\Include\\MNS\\CLiquidityEngine.mqh"
 #include "..\\..\\Include\\MNS\\CPOIEngine.mqh"
 #include "..\\..\\Include\\MNS\\CObjectiveEngine.mqh"
+#include "..\\..\\Include\\MNS\\CConfirmationEngine.mqh"
 #include "..\\..\\Include\\MNS\\MNSUtils.mqh"
 #include "..\\..\\Include\\MNS\\MNSVolatility.mqh"
 #include "..\\..\\Include\\MNS\\MNSConfig.mqh"
@@ -1297,6 +1298,149 @@ void RunModule009Tests()
 }
 
 //+------------------------------------------------------------------+
+//| Module 010 — CConfirmationEngine validation                       |
+//+------------------------------------------------------------------+
+void RunModule010Tests()
+{
+    Print("--- Module 010: CConfirmationEngine ---");
+
+    CConfirmationEngine confEngine;
+    bool initRes = confEngine.Initialize();
+    AssertTrue(initRes == true, "CConfirmationEngine.Initialize() returns true");
+    AssertTrue(confEngine.GetConfirmationState() == CONFIRMATION_STATE_NONE, "Default confirmation state is CONFIRMATION_STATE_NONE");
+
+    // Initialize mock dependencies
+    CSwingDetector swingDet;
+    swingDet.Initialize(15, 5);
+    CStructureEngine structEng;
+    structEng.Initialize(0.0);
+    CBreakDetector breakDet;
+    breakDet.Initialize();
+    COrderFlowEngine ofEngine;
+    ofEngine.Initialize();
+    CDeliveryStructureEngine delEngine;
+    delEngine.Initialize();
+    CLiquidityEngine liqEngine;
+    liqEngine.Initialize(0);
+    CPOIEngine poiEngine;
+    poiEngine.Initialize();
+    CObjectiveEngine objEngine;
+    objEngine.Initialize();
+
+    #define CONF_TEST_BARS 100
+    double   testHigh[CONF_TEST_BARS];
+    double   testLow[CONF_TEST_BARS];
+    double   testOpen[CONF_TEST_BARS];
+    double   testClose[CONF_TEST_BARS];
+    datetime testTime[CONF_TEST_BARS];
+
+    // Set times to span multiple days
+    MqlDateTime dt;
+    dt.year = 2026;
+    dt.mon = 8;
+    dt.day = 10;
+    dt.hour = 23;
+    dt.min = 0;
+    dt.sec = 0;
+
+    for (int i = 0; i < CONF_TEST_BARS; i++)
+    {
+        testHigh[i]  = 1.2000;
+        testLow[i]   = 1.1900;
+        testOpen[i]  = 1.1950;
+        testClose[i] = 1.1950;
+        
+        datetime t = StructToTime(dt);
+        testTime[i] = t;
+        
+        dt.hour--;
+        if (dt.hour < 0)
+        {
+            dt.hour = 23;
+            dt.day--;
+        }
+    }
+
+    // Set previous day (Day 9) high to 1.2200 and low to 1.1800
+    testHigh[30] = 1.2200;
+    testLow[30] = 1.1800;
+
+    // Set structure trend to bullish
+    structEng.OverrideTrend(TREND_BULLISH);
+    objEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+
+    // Revert testHigh[30] to baseline 1.2000 so it does not get detected as a swing high by CSwingDetector.
+    // We keep testLow[30] = 1.1800 so it is detected as a swing low (which the delivery engine needs).
+    testHigh[30] = 1.2000;
+
+    // Mock an active delivery leg (deliveryEngine)
+    // CBreakDetector needs a confirmed swing to break. Let's make Swing High 60 = 1.2100.
+    testHigh[60] = 1.2100;
+    swingDet.Update(testHigh, testLow, testTime, CONF_TEST_BARS, 0);
+    structEng.Update(swingDet, 0.0050);
+    structEng.OverrideTrend(TREND_BULLISH); // Re-apply override since structEng.Update recalculates trend based on swing count
+    
+    // Now trigger a break: close[1] = 1.2150 (above 1.2100)
+    testClose[1] = 1.2150;
+    testOpen[1] = 1.2050;
+    testHigh[1] = 1.2160; // Set to 1.2160 to ensure bodyRatio is >= 0.65 for displacement check
+    testLow[1] = 1.2040;  // Set to 1.2040 to ensure bodyRatio is >= 0.65 for displacement check
+    breakDet.Update(swingDet, structEng, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    
+    // Update delivery and order flow engines
+    ofEngine.Update(swingDet, structEng, breakDet, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    delEngine.Update(swingDet, structEng, breakDet, ofEngine, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+
+    // Assert that delivery leg is active and bullish
+    AssertTrue(delEngine.GetDirection() == DELIVERY_DIR_BULLISH, "Delivery engine direction is Bullish");
+    AssertTrue(delEngine.GetLifecycle() == DELIVERY_ACTIVE, "Delivery engine lifecycle is Active");
+
+    // Add a valid active POI: Bullish OB at 1.1900 to 1.2000
+    testOpen[2] = 1.2050;
+    testClose[2] = 1.1950;
+    testLow[2] = 1.1900;
+    testHigh[2] = 1.2060;
+    
+    breakDet.Update(swingDet, structEng, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    ofEngine.Update(swingDet, structEng, breakDet, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    delEngine.Update(swingDet, structEng, breakDet, ofEngine, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    poiEngine.Update(swingDet, structEng, breakDet, liqEngine, delEngine, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    
+    AssertTrue(poiEngine.GetPoIsCount() > 0, "POI Engine has registered POIs");
+
+    // Test 1: POI Touch -> Transition to PENDING
+    testLow[1] = 1.1950;
+    testClose[1] = 1.2000;
+    
+    confEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, objEngine, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    
+    AssertTrue(confEngine.GetConfirmationState() == CONFIRMATION_STATE_PENDING, "Confirmation state is PENDING after POI touch");
+    AssertTrue(confEngine.GetDirection() == CONFIRM_DIR_BULLISH, "Confirmation direction is BULLISH");
+
+    // Test 2: Liquidity Sweep OR Strong Rejection + Structural Trigger -> CONFIRMED
+    testOpen[1] = 1.2000;
+    testClose[1] = 1.2000;
+    testLow[1] = 1.1900;
+    testHigh[1] = 1.2000;
+    
+    confEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, objEngine, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    
+    AssertTrue(confEngine.GetConfirmationState() == CONFIRMATION_STATE_CONFIRMED, "Confirmation state transitions to CONFIRMED when all filters are met");
+    AssertTrue(confEngine.GetConfidenceScore() >= 60.0, "Confidence score is calculated and >= 60.0");
+
+    // Test 3: Invalidation via body close beyond invalidation level
+    testClose[1] = 1.1850;
+    testLow[1] = 1.1800;
+    
+    confEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, objEngine, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
+    
+    AssertTrue(confEngine.GetConfirmationState() == CONFIRMATION_STATE_INVALIDATED, "Confirmation state is INVALIDATED after body close beyond invalidation level");
+
+    #undef CONF_TEST_BARS
+    Print("--- Module 010 complete ---");
+}
+
+//+------------------------------------------------------------------+
 //| Module INF-000 — MNSCore validation                              |
 //+------------------------------------------------------------------+
 void RunModuleINF000Tests() {
@@ -1899,6 +2043,10 @@ int OnInit() {
     Print("----------------------------------------------");
 
     RunModule009Tests();
+
+    Print("----------------------------------------------");
+
+    RunModule010Tests();
 
     //--- Print summary
     Print("==============================================");

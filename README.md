@@ -136,8 +136,8 @@ Every module progresses through the following lifecycle:
 | OrderFlowEngine | Completed |
 | DeliveryStructureEngine | Completed |
 | LiquidityEngine | Completed |
-| POIEngine | Completed (Verification) |
-| ObjectiveEngine | Planned |
+| POIEngine | Completed |
+| ObjectiveEngine | Completed |
 | ConfirmationEngine | Planned |
 | EntryEngine | Planned |
 | RiskEngine | Planned |
@@ -247,11 +247,11 @@ Phase 1 — Build the Engine
 
 Current Milestone
 
-Module 008 — POI Engine Completed (Verification)
+Module 009 — Objective Engine Completed (Verification)
 
 Next Milestone
 
-Module 009 — Objective Engine
+Module 010 — Confirmation Engine
 
 ---
 
