@@ -158,6 +158,7 @@ bool CEntryEngine::Update(const CConfirmationEngine& confirmationEngine,
         if (!invalidate) {
             bool poiExists = false;
             SPoIDefinition activePoi;
+            activePoi.Reset(); // Ensure activePoi is initialized before conditional read below.
             int poiCount = poiEngine.GetPoIsCount();
             for (int i = 0; i < poiCount; i++) {
                 SPoIDefinition tempPoi;

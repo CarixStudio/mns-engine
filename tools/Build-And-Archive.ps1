@@ -73,6 +73,12 @@ $TestHarnessRelPath     = "Experts\MNS_TestHarness\MNS_TestHarness.mq5"
 $TestHarnessPath        = Join-Path $ProjectRoot $TestHarnessRelPath  # repo copy (source)
 $DeployedTestHarness    = $null  # populated in Assert-Prerequisites from MT5 install path
 
+# Path of the indicator source file relative to the Indicators folder.
+# Compiled alongside the TestHarness so the .ex5 is available in MT5 Navigator.
+$IndicatorRelPath       = "Indicators\MNS_Indicator.mq5"
+$IndicatorPath          = Join-Path $ProjectRoot $IndicatorRelPath     # repo copy (source)
+$DeployedIndicator      = $null  # populated in Assert-Prerequisites from MT5 install path
+
 # MT5 writes EA Experts tab output (Print() calls) to:
 #   <terminal_data>\MQL5\Logs\YYYYMMDD.log
 # NOT to <terminal_data>\logs\ which is the system/network log.
@@ -253,7 +259,10 @@ function Assert-Prerequisites {
     }
     $firstInst = $installations[0]
     $script:DeployedTestHarness = Join-Path $firstInst.MQL5Dir $TestHarnessRelPath
-    Write-Log "Deploy target : $($script:DeployedTestHarness)"
+    Write-Log "Deploy target (TestHarness) : $($script:DeployedTestHarness)"
+
+    $script:DeployedIndicator = Join-Path $firstInst.MQL5Dir $IndicatorRelPath
+    Write-Log "Deploy target (Indicator)   : $($script:DeployedIndicator)"
 
     # MetaEditor must be locatable (skip check if -SkipCompile).
     if (-not $SkipCompile) {
@@ -371,6 +380,59 @@ function Invoke-Compile {
 
     # If we cannot find a success pattern, treat it as a failure.
     Exit-WithError "Compilation FAILED. Check output above. Log: $compilerLogPath"
+
+}
+
+# -- Step 1b: Compile Indicator ------------------------------------------------
+
+function Invoke-CompileIndicator {
+    <#
+    .SYNOPSIS
+        Runs MetaEditor64.exe in CLI mode to compile MNS_Indicator.mq5.
+        Compiles from the MT5 MQL5 Indicators path so the resulting .ex5
+        lands where MT5 loads indicators from (Navigator → Indicators).
+        Exits with code 1 if compilation fails.
+    #>
+
+    Write-Banner "Step 1b - Compile Indicator"
+
+    $compilePath     = $script:DeployedIndicator
+    $compilerLogPath = [System.IO.Path]::ChangeExtension($compilePath, ".log")
+
+    if (-not (Test-Path $compilePath)) {
+        Exit-WithError "Deployed indicator not found: $compilePath`n  Run deploy.ps1 first."
+    }
+
+    Write-Log "Compiling: $compilePath"
+    Write-Host ""
+
+    $compileArgs = @(
+        "/compile:`"$compilePath`"",
+        "/log:`"$compilerLogPath`""
+    )
+
+    $process = Start-Process -FilePath $script:MetaEditorExe `
+                             -ArgumentList $compileArgs `
+                             -Wait -PassThru -NoNewWindow
+
+    # Always show compiler output so warnings are visible even on success.
+    $compilerOutput = ""
+    if (Test-Path $compilerLogPath) {
+        $compilerOutput = Get-Content $compilerLogPath -Raw
+        if ($compilerOutput) {
+            Write-Host "--- Compiler Output ---"
+            Write-Host $compilerOutput
+            Write-Host "-----------------------"
+            Write-Host ""
+        }
+    }
+
+    if ($compilerOutput -match "Result:\s+0 errors") {
+        Write-Log "Indicator compilation succeeded (0 errors, 0 warnings)." "SUCCESS"
+        return
+    }
+
+    Exit-WithError "Indicator compilation FAILED. Check output above. Log: $compilerLogPath"
 
 }
 
@@ -496,6 +558,7 @@ function Write-BuildReport {
     if (-not $SkipCompile) {
         Write-Host " Compiled:"
         Write-Host "   [OK] MNS_TestHarness" -ForegroundColor Green
+        Write-Host "   [OK] MNS_Indicator"   -ForegroundColor Green
         Write-Host ""
     }
 
@@ -580,6 +643,7 @@ function Main {
     # -- Step 1: Compile -------------------------------------------------------
     if (-not $SkipCompile) {
         Invoke-Compile
+        Invoke-CompileIndicator
     }
     else {
         Write-Log "Compilation skipped (-SkipCompile)." "WARN"

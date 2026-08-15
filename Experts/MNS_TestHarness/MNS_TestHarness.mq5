@@ -1936,9 +1936,12 @@ void RunModuleINF003Tests() {
 
 // 3. Exact ATR verification: All candles have identical range and Close == Low.
 #define TEST_ATR_SIZE 20
-    double hTest[TEST_ATR_SIZE];
-    double lTest[TEST_ATR_SIZE];
-    double cTest[TEST_ATR_SIZE];
+    double hTest[];
+    double lTest[];
+    double cTest[];
+    ArrayResize(hTest, TEST_ATR_SIZE);
+    ArrayResize(lTest, TEST_ATR_SIZE);
+    ArrayResize(cTest, TEST_ATR_SIZE);
 
     for (int i = 0; i < TEST_ATR_SIZE; i++) {
         hTest[i] = 1.0010;
@@ -2108,7 +2111,7 @@ class CMockSerializable : public IMNSSerializable {
         if (fileHandle == INVALID_HANDLE)
             return MNS_E_INVALIDARG;
 
-        long remaining = FileSize(fileHandle) - FileTell(fileHandle);
+        ulong remaining = FileSize(fileHandle) - FileTell(fileHandle);
         if (remaining < 16)
             return MNS_E_FAIL;
 
@@ -2173,7 +2176,7 @@ void RunModuleINF005Tests() {
     fileHandle = FileOpen(corruptFile, FILE_READ | FILE_BIN);
     AssertTrue(fileHandle != INVALID_HANDLE, "Opened binary file for corrupt reading");
     if (fileHandle != INVALID_HANDLE) {
-        long sz = FileSize(fileHandle);
+        ulong sz = FileSize(fileHandle);
         Print("  [INFO] Diagnostic: corrupt file size = ", sz);
         MNS_RESULT res = mockCorrupt.Deserialize(fileHandle);
         Print("  [INFO] Diagnostic: Deserialize result = 0x", IntegerToString(res, 8, '0'));

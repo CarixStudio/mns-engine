@@ -140,7 +140,7 @@ Every module progresses through the following lifecycle:
 | ObjectiveEngine | Completed |
 | ConfirmationEngine | Completed |
 | EntryEngine | Completed |
-| RiskEngine | Planned |
+| RiskEngine | Completed |
 | Indicator Integration | Planned |
 | EA Integration | Planned |
 
