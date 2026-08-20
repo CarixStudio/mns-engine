@@ -147,46 +147,6 @@ The following issues are open and will affect Stage 2 and later visual stages:
 
 ---
 
-## 4. Client Questions
-
-### M13-ISSUE-003: Unresolved Terminology (CRT, IRL, ERL)
-- **ID**: M13-ISSUE-003
-- **Global Tracking ID**: [MNS-ISSUE-001](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/docs/DEFERRED.md#mns-issue-001-crt--irl--erl-terminology-mismatch)
-- **Status**: CLIENT_INPUT_REQUIRED
-- **Severity**: High
-- **Discovered In**: Stage 0 (Audit)
-- **Affected Stage**: Stage 4 (Advanced Zone Renderers)
-- **Source Documents**:
-  - `docs/ai/prompts/module_013/stages/STAGE_00_ARCHITECTURE_AUDIT.md` (Stage 0 prompt)
-  - `kennystrategy2.md`
-  - `docs/INDICATOR_SPECIFICATION.md`
-  - `docs/indicator/UI_UX_SPECIFICATION.md`
-- **Problem**: The Stage 0 audit prompt lists visual inventory elements including "CRT High / Low", "CRT levels", "IRL", and "ERL". These terms are completely absent from the core engine codebases and strategy documents.
-- **Why It Matters**: We cannot implement drawing logic for concepts that do not exist in the underlying analytical state database.
-- **Current Understanding**: 
-  - Standard SMC (Smart Money Concepts) defines Internal Range Liquidity (IRL) as POIs/FVGs inside the dealing range and External Range Liquidity (ERL) as swings/EQH/EQL outside the range. These elements are already individually rendered.
-  - "CRT" might be a typo or custom liquidity level.
-  - These terms are not in the approved functional and UI specification documents.
-- **Required Decision**: Do these terms map to existing features (e.g. Swings/OBs/equilibrium), or are they custom concepts requiring new mathematical definitions and analysis modules?
-- **Actionable Question for Client**:
-  > "Do 'IRL' and 'ERL' simply refer to Internal Range Liquidity (already drawn as OB/FVG rectangles) and External Range Liquidity (already drawn as confirmed swings and EQH/EQL dashed lines), or do you have separate mathematical rules for them? Also, please define what 'CRT levels' and 'CRT High/Low' represent in your trading strategy, or clarify if they can be omitted."
-- **Dependencies**: Client response.
-- **Owner**: Technical Lead / Product Owner.
-- **Resolution Criteria**: Client response received.
-
----
-
-### Historical Delivery Legs and Targets
-- **Origin Issue ID**: M13-ISSUE-001 / [MNS-ISSUE-003](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/docs/DEFERRED.md#mns-issue-003-historical-delivery-leg--target-dol-data-storage)
-- **Status**: CLIENT_INPUT_REQUIRED
-- **Actionable Question for Client**:
-  > "Should the indicator render only the current active delivery leg (as a trend arrow) and active objective target (as a horizontal ray), or do you expect the chart to display all previous/historical delivery legs and targets as well? (Note: Rendering historical delivery legs would require refactoring the core analysis engines to store a historical database of legs)."
-- **Dependencies**: Client response.
-- **Owner**: Technical Lead.
-- **Resolution Criteria**: Written sign-off from the client.
-
----
-
 ## 5. Resolved Issues
 
 ### M13-ISSUE-003: Unresolved Terminology (CRT, IRL, ERL)

@@ -213,7 +213,7 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 | Stage 2 | Swing Point & Structure Renderers | ✅ Complete — Swing arrows and BOS/CHoCH lines rendering live on chart. 0 errors, 0 warnings. |
 | Stage 3 | Liquidity Pool Renderers (BSL/SSL/EQH/EQL) | ✅ Complete — Active BSL/SSL and EQH/EQL levels rendering on chart with capping and clean state transitions. |
 | **Stage 4** | **Advanced Zone Renderers (OB/FVG/Delivery/DOL)** | ✅ **Complete** — OB, Breaker, MB, FVG zones rendering as filled rectangles with lifecycle transitions; active delivery leg and DOL targets rendering cleanly. |
-| Stage 5 | Dashboard & Info Panel | ⬜ Pending |
+| **Stage 5** | **Dashboard & Info Panel** | ✅ **Complete** — Stacked vertical info panel displaying active states from all 11 core engines in real time. |
 | Stage 6 | Configuration Binding (INF-004 integration) | ⬜ Pending |
 | Stage 7 | Session Renderers & Premium/Discount Zones | ⬜ Pending |
 | Stage 8 | Visual Performance Profiling | ⬜ Pending |
@@ -226,6 +226,12 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 - `Include/MNS/Renderers/CDeliveryRenderer.mqh` — Active delivery leg and DOL visual renderer
 - `Indicators/MNS_Indicator.mq5` — Updated coordinator to instantiate and call Stage 4 renderers
 - `docs/modules/013_STAGE_04_DESIGN.md` — Stage 4 detailed design specifications
+
+### Stage 5 Deliverables
+- `Include/MNS/MNSStyle.mqh` — Updated with dashboard styling variables and default theme values
+- `Include/MNS/Renderers/CDashboardRenderer.mqh` — Visual status dashboard renderer
+- `Indicators/MNS_Indicator.mq5` — Updated coordinator to instantiate and call CDashboardRenderer
+- `docs/modules/013_STAGE_05_DESIGN.md` — Stage 5 detailed design specifications
 
 
 

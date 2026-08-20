@@ -43,7 +43,11 @@ private:
     void                EvaluateFailsAndBreakers(const CBreakDetector &breakDetector, const double &close[], const datetime &time[]);
     void                UpdateLifecycles(const double &high[], const double &low[], const double &close[], const datetime &time[]);
     void                EvaluateConfluence();
-    void                RankPOIs(const CSwingDetector &swingDetector, const CDeliveryStructureEngine &deliveryEngine);
+    void                RankPOIs(const CSwingDetector &swingDetector,
+                                 const CStructureEngine &structureEngine,
+                                 const CBreakDetector &breakDetector,
+                                 const CLiquidityEngine &liquidityEngine,
+                                 const CDeliveryStructureEngine &deliveryEngine);
     int                 FindPOIIndexByPrice(double lower, double upper, EPoIType type) const;
     void                AddOrUpdatePOI(EPoIType type, double lower, double upper, double invalidation, datetime timeVal, int barIdx, double fillPct = 0.0);
 
@@ -202,7 +206,7 @@ bool CPOIEngine::Update(const CSwingDetector &swingDetector,
     EvaluateConfluence();
 
     // 7. Calculate quality scores and priority
-    RankPOIs(swingDetector, deliveryEngine);
+    RankPOIs(swingDetector, structureEngine, breakDetector, liquidityEngine, deliveryEngine);
 
     return true;
 }
@@ -779,10 +783,30 @@ void CPOIEngine::EvaluateConfluence()
 //| Ranks POIs (0 to 100) and assigns priority                      |
 //+------------------------------------------------------------------+
 void CPOIEngine::RankPOIs(const CSwingDetector &swingDetector,
-                           const CDeliveryStructureEngine &deliveryEngine)
+                          const CStructureEngine &structureEngine,
+                          const CBreakDetector &breakDetector,
+                          const CLiquidityEngine &liquidityEngine,
+                          const CDeliveryStructureEngine &deliveryEngine)
 {
     EDeliveryDirection delDir = deliveryEngine.GetDirection();
     double dolPrice = deliveryEngine.GetState().currentObjective;
+    ETrend structureTrend = structureEngine.GetState().trend;
+
+    // Get current period (timeframe) to determine HTF significance
+    ENUM_TIMEFRAMES currentPeriod = Period();
+    double tfSignificance = 10.0; // Default fallback
+    if (currentPeriod == PERIOD_W1 || currentPeriod == PERIOD_MN1 || currentPeriod == PERIOD_D1)
+        tfSignificance = 15.0;
+    else if (currentPeriod == PERIOD_H4)
+        tfSignificance = 13.0;
+    else if (currentPeriod == PERIOD_H1)
+        tfSignificance = 10.0;
+    else if (currentPeriod == PERIOD_M15)
+        tfSignificance = 7.0;
+    else if (currentPeriod == PERIOD_M5)
+        tfSignificance = 4.0;
+    else if (currentPeriod == PERIOD_M1)
+        tfSignificance = 2.0;
 
     for (int k = 0; k < m_poisCount; k++)
     {
@@ -790,51 +814,75 @@ void CPOIEngine::RankPOIs(const CSwingDetector &swingDetector,
             continue;
 
         double score = 0.0;
-
-        // 1. Base Score
-        switch (m_pois[k].type)
-        {
-            case POI_OB_BULLISH:
-            case POI_OB_BEARISH:
-                score += 55.0; // Base fresh OB
-                break;
-            case POI_BREAKER_BULLISH:
-            case POI_BREAKER_BEARISH:
-                score += 60.0; // Base Breaker
-                break;
-            case POI_MITIGATION_BULLISH:
-            case POI_MITIGATION_BEARISH:
-                score += 45.0; // Base Mitigation
-                break;
-            case POI_FVG_BULLISH:
-            case POI_FVG_BEARISH:
-                score += 35.0; // Base FVG
-                break;
-            default:
-                break;
-        }
-
-        // 2. Modifiers
-        // Mod 1: Freshness (Untouched)
-        if (m_pois[k].lifecycle == POI_STATE_ACTIVE)
-            score += 10.0;
-
-        // Mod 2: Premium / Discount Location
-        EDealingRangeZone zone = GetDealingRangeZone((m_pois[k].upperPrice + m_pois[k].lowerPrice) / 2.0, swingDetector);
         bool isBullish = (m_pois[k].type == POI_OB_BULLISH || m_pois[k].type == POI_BREAKER_BULLISH || m_pois[k].type == POI_MITIGATION_BULLISH || m_pois[k].type == POI_FVG_BULLISH);
-        
-        if ((isBullish && zone == ZONE_DISCOUNT) || (!isBullish && zone == ZONE_PREMIUM))
+
+        // 1. Structural/BOS Relationship (20 pts)
+        if (m_pois[k].type == POI_OB_BULLISH || m_pois[k].type == POI_OB_BEARISH ||
+            m_pois[k].type == POI_BREAKER_BULLISH || m_pois[k].type == POI_BREAKER_BEARISH)
+        {
+            score += 20.0;
+        }
+        else if (m_pois[k].type == POI_MITIGATION_BULLISH || m_pois[k].type == POI_MITIGATION_BEARISH)
         {
             score += 15.0;
         }
-
-        // Mod 3: Delivery leg alignment
-        if ((isBullish && delDir == DELIVERY_DIR_BULLISH) || (!isBullish && delDir == DELIVERY_DIR_BEARISH))
+        else if (m_pois[k].type == POI_FVG_BULLISH || m_pois[k].type == POI_FVG_BEARISH)
         {
             score += 10.0;
         }
 
-        // Mod 4: DOL alignment (Objective pathway)
+        // 2. Freshness (15 pts)
+        if (m_pois[k].lifecycle == POI_STATE_ACTIVE)
+        {
+            score += 15.0;
+        }
+        else if (m_pois[k].lifecycle == POI_STATE_PARTIAL_MITIGATED)
+        {
+            score += 10.0;
+        }
+        else if (m_pois[k].lifecycle == POI_STATE_MATERIAL_MITIGATED)
+        {
+            score += 5.0;
+        }
+
+        // 3. Displacement Strength (15 pts)
+        // Find the break that occurred at the creation time of this POI
+        double dispScore = 0.0;
+        int breakCount = breakDetector.GetBreakCount();
+        for (int i = breakCount - 1; i >= 0; i--)
+        {
+            SStructureBreak sb = breakDetector.GetBreak(i);
+            if (sb.isConfirmed && sb.time == m_pois[k].createdTime)
+            {
+                if (sb.strength == STRENGTH_STRONG)
+                    dispScore = 15.0;
+                else if (sb.strength == STRENGTH_AVERAGE)
+                    dispScore = 10.0;
+                else if (sb.strength == STRENGTH_WEAK)
+                    dispScore = 5.0;
+                break;
+            }
+        }
+        // Fallback: if no direct break match (e.g. FVG detected independently), check break count to find closest
+        if (dispScore == 0.0 && breakCount > 0)
+        {
+            SStructureBreak sb = breakDetector.GetBreak(breakCount - 1);
+            if (sb.isConfirmed)
+            {
+                if (sb.strength == STRENGTH_STRONG)
+                    dispScore = 10.0;
+                else if (sb.strength == STRENGTH_AVERAGE)
+                    dispScore = 7.0;
+                else
+                    dispScore = 4.0;
+            }
+        }
+        score += dispScore;
+
+        // 4. HTF Significance (15 pts)
+        score += tfSignificance;
+
+        // 5. DOL Alignment (10 pts)
         if (dolPrice != 0.0 && dolPrice != DBL_MAX)
         {
             if (isBullish && dolPrice > m_pois[k].upperPrice)
@@ -843,15 +891,97 @@ void CPOIEngine::RankPOIs(const CSwingDetector &swingDetector,
                 score += 10.0; // Bearish POI is above the target DOL
         }
 
+        // 6. MTF Alignment (10 pts)
+        if ((isBullish && structureTrend == TREND_BULLISH) || (!isBullish && structureTrend == TREND_BEARISH))
+        {
+            score += 10.0;
+        }
+        else if (structureTrend == TREND_RANGING || structureTrend == TREND_TRANSITION)
+        {
+            score += 5.0;
+        }
+
+        // 7. Liquidity Relationship (5 pts)
+        // Check if there is an active liquidity pool close to our POI boundaries
+        bool nearLiq = false;
+        int poolCount = liquidityEngine.GetPoolsCount();
+        double tol = 5.0 * _Point;
+        for (int i = 0; i < poolCount; i++)
+        {
+            SLiquidityPool pool;
+            if (liquidityEngine.GetPool(i, pool) && pool.active)
+            {
+                if (isBullish && pool.type == LIQUIDITY_SSL)
+                {
+                    if (MathAbs(pool.level - m_pois[k].lowerPrice) <= tol || MathAbs(pool.level - m_pois[k].upperPrice) <= tol)
+                    {
+                        nearLiq = true;
+                        break;
+                    }
+                }
+                else if (!isBullish && pool.type == LIQUIDITY_BSL)
+                {
+                    if (MathAbs(pool.level - m_pois[k].lowerPrice) <= tol || MathAbs(pool.level - m_pois[k].upperPrice) <= tol)
+                    {
+                        nearLiq = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (nearLiq)
+            score += 5.0;
+        else
+            score += 2.0; // Minor presence
+
+        // 8. Premium/Discount Location (5 pts)
+        EDealingRangeZone zone = GetDealingRangeZone((m_pois[k].upperPrice + m_pois[k].lowerPrice) / 2.0, swingDetector);
+        if ((isBullish && zone == ZONE_DISCOUNT) || (!isBullish && zone == ZONE_PREMIUM))
+        {
+            score += 5.0;
+        }
+
+        // 9. POI Confluence (5 pts)
+        // Check if this POI overlaps by >= 50% with another active POI of different type but same direction
+        bool hasConfluence = false;
+        double smallerSize = m_pois[k].upperPrice - m_pois[k].lowerPrice;
+        for (int j = 0; j < m_poisCount; j++)
+        {
+            if (j == k || !m_pois[j].active)
+                continue;
+
+            bool otherBullish = (m_pois[j].type == POI_OB_BULLISH || m_pois[j].type == POI_BREAKER_BULLISH || m_pois[j].type == POI_MITIGATION_BULLISH || m_pois[j].type == POI_FVG_BULLISH);
+            if (isBullish != otherBullish || m_pois[k].type == m_pois[j].type)
+                continue;
+
+            double overlapLower = MathMax(m_pois[k].lowerPrice, m_pois[j].lowerPrice);
+            double overlapUpper = MathMin(m_pois[k].upperPrice, m_pois[j].upperPrice);
+            if (overlapUpper > overlapLower)
+            {
+                double overlapSize = overlapUpper - overlapLower;
+                double otherSize = m_pois[j].upperPrice - m_pois[j].lowerPrice;
+                double limit = MathMin(smallerSize, otherSize) * 0.50;
+                if (overlapSize >= limit)
+                {
+                    hasConfluence = true;
+                    break;
+                }
+            }
+        }
+        if (hasConfluence)
+            score += 5.0;
+
         if (score > 100.0) score = 100.0;
         m_pois[k].rankingScore = score;
 
         // Priority assignment
-        if (score >= 80.0)
+        if (score >= 90.0) // 90-100 Elite
             m_pois[k].priority = PRIORITY_HIGH;
-        else if (score >= 60.0)
+        else if (score >= 80.0) // 80-89 Strong
+            m_pois[k].priority = PRIORITY_HIGH;
+        else if (score >= 70.0) // 70-79 Valid
             m_pois[k].priority = PRIORITY_MEDIUM;
-        else
+        else // < 70 Weak
             m_pois[k].priority = PRIORITY_LOW;
     }
 }

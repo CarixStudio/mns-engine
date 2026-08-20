@@ -411,17 +411,25 @@ bool CConfirmationEngine::EvaluateStrongRejection(const double& high[],
     if (range <= 0.0)
         return false;
 
+    // Sanity check: Reject extremely tiny candles as confirmation
+    if (range < 0.50 * currentAtr)
+        return false;
+
     if (m_state.direction == CONFIRM_DIR_BULLISH) {
         double lowerWick = MathMin(open[1], close[1]) - low[1];
-        if (lowerWick >= 0.50 * range) {
-            if (close[1] >= low[1] + 0.50 * range)
-                return true;
+        double lowerWickRatio = lowerWick / range;
+        double closeLocation = (close[1] - low[1]) / range;
+
+        if (lowerWickRatio >= 0.50 && closeLocation >= 0.70 && close[1] > open[1]) {
+            return true;
         }
     } else if (m_state.direction == CONFIRM_DIR_BEARISH) {
         double upperWick = high[1] - MathMax(open[1], close[1]);
-        if (upperWick >= 0.50 * range) {
-            if (close[1] <= low[1] + 0.50 * range)
-                return true;
+        double upperWickRatio = upperWick / range;
+        double closeLocation = (high[1] - close[1]) / range;
+
+        if (upperWickRatio >= 0.50 && closeLocation >= 0.70 && close[1] < open[1]) {
+            return true;
         }
     }
     return false;

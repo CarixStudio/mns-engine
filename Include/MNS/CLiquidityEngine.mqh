@@ -32,6 +32,7 @@ private:
 
     // Private helper methods
     void                DetectDailyWeeklyLevels(const double &high[], const double &low[], const datetime &time[], int ratesTotal);
+    void                DetectSessionLevels(const double &high[], const double &low[], const datetime &time[], int ratesTotal);
     void                DetectEqualPivots(const CSwingDetector &swingDetector, double currentAtr);
     void                CheckSweepsAndBreakouts(const double &high[], const double &low[], const double &close[], const datetime &time[], double currentAtr, double minBreakDistance);
     void                RankPools(const CDeliveryStructureEngine &deliveryEngine);
@@ -122,6 +123,7 @@ bool CLiquidityEngine::Update(const CSwingDetector &swingDetector,
 
     // 1. Detect Daily / Weekly / Session Transitions
     DetectDailyWeeklyLevels(high, low, time, ratesTotal);
+    DetectSessionLevels(high, low, time, ratesTotal);
 
     // 2. Scan swings for new levels and Equal Pivots (EQH / EQL)
     DetectEqualPivots(swingDetector, currentAtr);
@@ -413,15 +415,61 @@ void CLiquidityEngine::AddOrUpdatePool(ELiquidityType type, ELiquiditySource sou
     if (m_poolsCount >= 128)
     {
         targetIdx = -1;
+        int highestPriority = -1;
         datetime oldestTime = DBL_MAX;
+
         for (int k = 0; k < 128; k++)
         {
-            if (!m_pools[k].active && m_pools[k].createdTime < oldestTime)
+            if (m_pools[k].active)
+                continue;
+
+            int priority = 0;
+            switch (m_pools[k].lifecycle)
+            {
+                case LIQ_ARCHIVED:  priority = 4; break;
+                case LIQ_CONSUMED:  priority = 3; break;
+                case LIQ_SWEPT:     priority = 2; break;
+                case LIQ_BROKEN:    priority = 1; break;
+                default:            priority = 0; break;
+            }
+
+            if (priority > highestPriority)
+            {
+                highestPriority = priority;
+                oldestTime = m_pools[k].createdTime;
+                targetIdx = k;
+            }
+            else if (priority == highestPriority && m_pools[k].createdTime < oldestTime)
             {
                 oldestTime = m_pools[k].createdTime;
                 targetIdx = k;
             }
         }
+
+        // If no inactive pools found, evict based on lowest priority score
+        if (targetIdx == -1)
+        {
+            double lowestScore = DBL_MAX;
+            oldestTime = DBL_MAX;
+            for (int k = 0; k < 128; k++)
+            {
+                if (m_pools[k].source == LIQ_SRC_WEEKLY)
+                    continue;
+
+                if (m_pools[k].rankingScore < lowestScore)
+                {
+                    lowestScore = m_pools[k].rankingScore;
+                    oldestTime = m_pools[k].createdTime;
+                    targetIdx = k;
+                }
+                else if (m_pools[k].rankingScore == lowestScore && m_pools[k].createdTime < oldestTime)
+                {
+                    oldestTime = m_pools[k].createdTime;
+                    targetIdx = k;
+                }
+            }
+        }
+
         if (targetIdx == -1)
             targetIdx = 0;
     }
@@ -491,6 +539,75 @@ double CLiquidityEngine::GetNearestSSL(double currentPrice) const
         }
     }
     return nearest;
+}
+
+//+------------------------------------------------------------------+
+//| Detects session transitions to establish Tokyo/London/NY pools   |
+//+------------------------------------------------------------------+
+void CLiquidityEngine::DetectSessionLevels(const double &high[], const double &low[], const datetime &time[], int ratesTotal)
+{
+    if (ratesTotal < 50)
+        return;
+
+    datetime currentGmt = time[ratesTotal - 1] - m_gmtOffset * 3600;
+    datetime prevGmt = time[ratesTotal - 2] - m_gmtOffset * 3600;
+
+    MqlDateTime dtCurrent, dtPrev;
+    TimeToStruct(currentGmt, dtCurrent);
+    TimeToStruct(prevGmt, dtPrev);
+
+    // Check session close boundaries (GMT hours)
+    int startHour = -1;
+    int endHour = -1;
+
+    if (dtPrev.hour < 8 && dtCurrent.hour >= 8)
+    {
+        startHour = 0;
+        endHour = 8;
+    }
+    else if (dtPrev.hour < 16 && dtCurrent.hour >= 16)
+    {
+        startHour = 8;
+        endHour = 16;
+    }
+    else if (dtPrev.hour < 21 && dtCurrent.hour >= 21)
+    {
+        startHour = 13;
+        endHour = 21;
+    }
+
+    if (startHour != -1 && endHour != -1)
+    {
+        double sessHigh = -1.0;
+        double sessLow = DBL_MAX;
+        datetime sessTime = 0;
+
+        for (int j = ratesTotal - 2; j >= 0; j--)
+        {
+            datetime barGmt = time[j] - m_gmtOffset * 3600;
+            MqlDateTime dt;
+            TimeToStruct(barGmt, dt);
+
+            if (dt.day == dtPrev.day && dt.mon == dtPrev.mon && dt.year == dtPrev.year &&
+                dt.hour >= startHour && dt.hour < endHour)
+            {
+                if (high[j] > sessHigh) sessHigh = high[j];
+                if (low[j] < sessLow) sessLow = low[j];
+                if (sessTime == 0) sessTime = time[j];
+            }
+            else if (dt.day != dtPrev.day || dt.hour < startHour)
+            {
+                if (sessTime != 0)
+                    break;
+            }
+        }
+
+        if (sessHigh > 0.0)
+        {
+            AddOrUpdatePool(LIQUIDITY_BSL, LIQ_SRC_SESSION, sessHigh, sessTime, 1);
+            AddOrUpdatePool(LIQUIDITY_SSL, LIQ_SRC_SESSION, sessLow, sessTime, 1);
+        }
+    }
 }
 
 #endif // __MNS_LIQUIDITY_ENGINE_MQH__

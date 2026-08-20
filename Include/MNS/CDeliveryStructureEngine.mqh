@@ -141,6 +141,7 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
 
     bool stateChanged = false;
     double invalidationLevel = m_state.invalidationLevel;
+    double minBreakDist = MathMax(2.0 * _Point, 0.10 * currentAtr);
 
     // --- 1. Evaluate Invalidation & Mitigation & Objective on Active Leg ---
     if (m_state.lifecycle == DELIVERY_ACTIVE || 
@@ -149,8 +150,8 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
     {
         if (m_state.direction == DELIVERY_DIR_BULLISH)
         {
-            // Close below protected low triggers invalidation (Rule 3.4)
-            if (close[1] < invalidationLevel)
+            // Close below protected low minus break distance triggers invalidation (Rule 3.4)
+            if (close[1] < invalidationLevel - minBreakDist)
             {
                 m_state.Reset();
                 m_state.lifecycle = DELIVERY_INVALIDATED;
@@ -161,8 +162,9 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
                 return true;
             }
             
-            // Wick low below invalidation (without close) triggers mitigation
-            if (m_state.lifecycle != DELIVERY_MITIGATED && low[1] <= invalidationLevel)
+            // Wick low below or entering originating POI zone (protectedPrice) triggers mitigation
+            double mitThreshold = (m_state.protectedPrice > 0.0) ? m_state.protectedPrice : invalidationLevel;
+            if (m_state.lifecycle != DELIVERY_MITIGATED && low[1] <= mitThreshold)
             {
                 m_state.lifecycle = DELIVERY_MITIGATED;
                 m_state.lastUpdatedTime = time[1];
@@ -179,8 +181,8 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
         }
         else if (m_state.direction == DELIVERY_DIR_BEARISH)
         {
-            // Close above protected high triggers invalidation (Rule 3.4)
-            if (close[1] > invalidationLevel)
+            // Close above protected high plus break distance triggers invalidation (Rule 3.4)
+            if (close[1] > invalidationLevel + minBreakDist)
             {
                 m_state.Reset();
                 m_state.lifecycle = DELIVERY_INVALIDATED;
@@ -191,8 +193,9 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
                 return true;
             }
             
-            // Wick high above invalidation (without close) triggers mitigation
-            if (m_state.lifecycle != DELIVERY_MITIGATED && high[1] >= invalidationLevel)
+            // Wick high above or entering originating POI zone (protectedPrice) triggers mitigation
+            double mitThreshold = (m_state.protectedPrice > 0.0) ? m_state.protectedPrice : invalidationLevel;
+            if (m_state.lifecycle != DELIVERY_MITIGATED && high[1] >= mitThreshold)
             {
                 m_state.lifecycle = DELIVERY_MITIGATED;
                 m_state.lastUpdatedTime = time[1];
@@ -223,10 +226,15 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
             {
                 if (structureEngine.IsBullish() && orderFlowEngine.IsBullish() && sb.strength > STRENGTH_WEAK)
                 {
-                    // If we have an active bullish leg running, it is replaced by this newer leg
+                    // If we have an active bullish leg running, it is replaced by this newer leg (if it breaks a new swing level)
                     if (m_state.direction == DELIVERY_DIR_BULLISH && 
                         (m_state.lifecycle == DELIVERY_ACTIVE || m_state.lifecycle == DELIVERY_OBJECTIVE_REACHED || m_state.lifecycle == DELIVERY_MITIGATED))
                     {
+                        if (sb.brokenSwing.time == m_state.associatedPoiId)
+                        {
+                            // Skip duplicate replacement of the same swing level
+                            continue;
+                        }
                         m_state.lifecycle = DELIVERY_REPLACED;
                     }
 
@@ -237,10 +245,41 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
                         m_state.lifecycle = DELIVERY_ACTIVE;
                         m_state.originPrice = prevLow.price;
                         m_state.originTime = prevLow.time;
-                        m_state.protectedPrice = prevLow.price;
+                        
+                        // Find the index of the swing time in the chart arrays to estimate originating zone
+                        int originIdx = -1;
+                        for (int j = 0; j < ratesTotal; j++)
+                        {
+                            if (time[j] == prevLow.time)
+                            {
+                                originIdx = j;
+                                break;
+                            }
+                        }
+                        if (originIdx != -1)
+                        {
+                            int targetIdx = originIdx;
+                            for (int k = 0; k < 4; k++)
+                            {
+                                int idx = originIdx - k;
+                                if (idx >= 0 && close[idx] < open[idx])
+                                {
+                                    targetIdx = idx;
+                                    break;
+                                }
+                            }
+                            m_state.protectedPrice = MathMax(open[targetIdx], close[targetIdx]);
+                        }
+                        else
+                        {
+                            m_state.protectedPrice = prevLow.price;
+                        }
+
                         m_state.invalidationLevel = prevLow.price;
                         m_state.associatedBosId = sb.time;
                         m_state.associatedDisplacementId = sb.time;
+                        // Store the broken swing's creation time to prevent duplicate replacement of same swing level
+                        m_state.associatedPoiId = sb.brokenSwing.time;
                         
                         // Set Objective (DOL) fallback
                         if (htfDolPrice != DBL_MAX && htfDolPrice != MNS_INVALID_PRICE)
@@ -269,6 +308,11 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
                     if (m_state.direction == DELIVERY_DIR_BEARISH && 
                         (m_state.lifecycle == DELIVERY_ACTIVE || m_state.lifecycle == DELIVERY_OBJECTIVE_REACHED || m_state.lifecycle == DELIVERY_MITIGATED))
                     {
+                        if (sb.brokenSwing.time == m_state.associatedPoiId)
+                        {
+                            // Skip duplicate replacement of the same swing level
+                            continue;
+                        }
                         m_state.lifecycle = DELIVERY_REPLACED;
                     }
 
@@ -279,10 +323,41 @@ bool CDeliveryStructureEngine::Update(const CSwingDetector &swingDetector,
                         m_state.lifecycle = DELIVERY_ACTIVE;
                         m_state.originPrice = prevHigh.price;
                         m_state.originTime = prevHigh.time;
-                        m_state.protectedPrice = prevHigh.price;
+                        
+                        // Find the index of the swing time in the chart arrays to estimate originating zone
+                        int originIdx = -1;
+                        for (int j = 0; j < ratesTotal; j++)
+                        {
+                            if (time[j] == prevHigh.time)
+                            {
+                                originIdx = j;
+                                break;
+                            }
+                        }
+                        if (originIdx != -1)
+                        {
+                            int targetIdx = originIdx;
+                            for (int k = 0; k < 4; k++)
+                            {
+                                int idx = originIdx - k;
+                                if (idx >= 0 && close[idx] > open[idx])
+                                {
+                                    targetIdx = idx;
+                                    break;
+                                }
+                            }
+                            m_state.protectedPrice = MathMin(open[targetIdx], close[targetIdx]);
+                        }
+                        else
+                        {
+                            m_state.protectedPrice = prevHigh.price;
+                        }
+
                         m_state.invalidationLevel = prevHigh.price;
                         m_state.associatedBosId = sb.time;
                         m_state.associatedDisplacementId = sb.time;
+                        // Store the broken swing's creation time to prevent duplicate replacement of same swing level
+                        m_state.associatedPoiId = sb.brokenSwing.time;
                         
                         // Set Objective (DOL) fallback
                         if (htfDolPrice != DBL_MAX && htfDolPrice != MNS_INVALID_PRICE)
