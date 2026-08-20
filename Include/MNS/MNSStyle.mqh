@@ -56,6 +56,25 @@ struct SIndicatorStyle {
     ENUM_LINE_STYLE styleLiqActive; ///< Line style for active BSL/SSL pools (STYLE_DASH)
     ENUM_LINE_STYLE styleLiqSwept;  ///< Line style for swept pools (STYLE_DOT)
 
+    //--- POI Zone Colors
+    color colorOBBull;        ///< Bullish Order Block (MediumSpringGreen)
+    color colorOBBear;        ///< Bearish Order Block (Crimson)
+    color colorBreakerBull;   ///< Bullish Breaker Block (DeepSkyBlue)
+    color colorBreakerBear;   ///< Bearish Breaker Block (OrangeRed)
+    color colorMBBull;        ///< Bullish Mitigation Block (DarkCyan)
+    color colorMBBear;        ///< Bearish Mitigation Block (DarkOrange)
+    color colorFVGBull;       ///< Bullish FVG (LimeGreen)
+    color colorFVGBear;       ///< Bearish FVG (OrangeRed)
+    int   widthPOIBorder;     ///< POI rectangle border width (default 1)
+
+    //--- Delivery Leg Colors
+    color colorDeliveryBull;  ///< Active bullish delivery leg (Aqua)
+    color colorDeliveryBear;  ///< Active bearish delivery leg (OrangeRed)
+    int   widthDeliveryLine;  ///< Delivery leg line width (default 1)
+
+    //--- DOL Target
+    color colorDOL;           ///< Active DOL horizontal level (Gold)
+
     /// @brief Resets the style structure to safe default premium theme values.
     void Reset() {
         // Default premium theme colors (matching UI/UX spec: Lime/Red/Orange/Gray)
@@ -96,6 +115,25 @@ struct SIndicatorStyle {
         widthLiqLine = 1;
         styleLiqActive = STYLE_DASH;
         styleLiqSwept = STYLE_DOT;
+
+        // POI default styles (dark desaturated tints to ensure high candle/wick contrast)
+        colorOBBull = C'0x0A, 0x2A, 0x14';       // Dark green
+        colorOBBear = C'0x2F, 0x0A, 0x0A';       // Dark red
+        colorBreakerBull = C'0x0A, 0x1A, 0x2E';   // Dark blue
+        colorBreakerBear = C'0x2E, 0x14, 0x0A';   // Dark orange-red
+        colorMBBull = C'0x0A, 0x24, 0x24';        // Dark cyan
+        colorMBBear = C'0x2E, 0x1A, 0x0A';        // Dark orange
+        colorFVGBull = C'0x0E, 0x30, 0x0E';       // Dark FVG green
+        colorFVGBear = C'0x30, 0x0E, 0x0E';       // Dark FVG red
+        widthPOIBorder = 1;
+
+        // Delivery default styles
+        colorDeliveryBull = clrAqua;
+        colorDeliveryBear = clrOrangeRed;
+        widthDeliveryLine = 1;
+
+        // DOL default style
+        colorDOL = clrGold;
     }
 };
 

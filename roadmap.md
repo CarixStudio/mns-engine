@@ -211,8 +211,8 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 | Stage 0 | Architecture & Dependency Audit | ✅ Complete |
 | Stage 1 | Indicator Shell & Lifecycle Coordinator | ✅ Complete — 0 errors, 0 warnings. All 11 engines initialized on GBPUSD H1. |
 | Stage 2 | Swing Point & Structure Renderers | ✅ Complete — Swing arrows and BOS/CHoCH lines rendering live on chart. 0 errors, 0 warnings. |
-| **Stage 3** | **Liquidity Pool Renderers (BSL/SSL/EQH/EQL)** | ✅ **Complete** — Active BSL/SSL and EQH/EQL levels rendering on chart with capping and clean state transitions. |
-| Stage 4 | Advanced Zone Renderers (OB/FVG/Delivery/DOL) | ⬜ Pending |
+| Stage 3 | Liquidity Pool Renderers (BSL/SSL/EQH/EQL) | ✅ Complete — Active BSL/SSL and EQH/EQL levels rendering on chart with capping and clean state transitions. |
+| **Stage 4** | **Advanced Zone Renderers (OB/FVG/Delivery/DOL)** | ✅ **Complete** — OB, Breaker, MB, FVG zones rendering as filled rectangles with lifecycle transitions; active delivery leg and DOL targets rendering cleanly. |
 | Stage 5 | Dashboard & Info Panel | ⬜ Pending |
 | Stage 6 | Configuration Binding (INF-004 integration) | ⬜ Pending |
 | Stage 7 | Session Renderers & Premium/Discount Zones | ⬜ Pending |
@@ -220,11 +220,12 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 | Stage 9 | Integration Testing | ⬜ Pending |
 | Stage 10 | Production Build & Release | ⬜ Pending |
 
-### Stage 3 Deliverables
-- `Include/MNS/MNSStyle.mqh` — Centralized visual style tokens (updated with liquidity styles)
-- `Include/MNS/Renderers/CLiquidityRenderer.mqh` — Liquidity pool renderer class (BSL/SSL/EQH/EQL)
-- `Indicators/MNS_Indicator.mq5` — Coordinator updated to integrate liquidity rendering
-- `docs/modules/013_STAGE_03_DESIGN.md` — Stage 3 detailed design specifications
+### Stage 4 Deliverables
+- `Include/MNS/MNSStyle.mqh` — Updated with POI, Delivery, and DOL visual style tokens
+- `Include/MNS/Renderers/CPOIRenderer.mqh` — POI zone visual renderer (OB/Breaker/Mitigation/FVG)
+- `Include/MNS/Renderers/CDeliveryRenderer.mqh` — Active delivery leg and DOL visual renderer
+- `Indicators/MNS_Indicator.mq5` — Updated coordinator to instantiate and call Stage 4 renderers
+- `docs/modules/013_STAGE_04_DESIGN.md` — Stage 4 detailed design specifications
 
 
 

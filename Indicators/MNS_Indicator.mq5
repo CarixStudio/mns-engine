@@ -87,6 +87,8 @@
 #include <MNS/Renderers/CSwingRenderer.mqh>
 #include <MNS/Renderers/CStructureRenderer.mqh>
 #include <MNS/Renderers/CLiquidityRenderer.mqh>
+#include <MNS/Renderers/CPOIRenderer.mqh>
+#include <MNS/Renderers/CDeliveryRenderer.mqh>
 
 //+------------------------------------------------------------------+
 //| Indicator Input Parameters                                        |
@@ -118,6 +120,9 @@ input int    InpMaxRenderedBreaks = 20;
 
 /// @brief Maximum historical active liquidity pools to render on the chart.
 input int    InpMaxRenderedPools = 20;
+
+/// @brief Maximum historical active POI zones to render on the chart.
+input int    InpMaxRenderedPOIs = 20;
 
 /// @brief Maximum history bars to process (prevents engine array overflows).
 input int    InpMaxHistoryBars   = 1000;
@@ -163,6 +168,8 @@ CRiskEngine              g_risk;
 CSwingRenderer           g_swingRenderer;
 CStructureRenderer       g_structureRenderer;
 CLiquidityRenderer       g_liquidityRenderer;
+CPOIRenderer             g_poiRenderer;
+CDeliveryRenderer        g_deliveryRenderer;
 
 //+------------------------------------------------------------------+
 //| Lifecycle State                                                   |
@@ -340,6 +347,16 @@ int OnInit()
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CLiquidityRenderer::Initialize() FAILED.");
         return INIT_FAILED;
     }
+    if (!g_poiRenderer.Initialize(style, InpMaxRenderedPOIs))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CPOIRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
+    if (!g_deliveryRenderer.Initialize(style))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CDeliveryRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
     MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "Visual renderers initialized.");
 
     //--- All engines initialized successfully
@@ -384,6 +401,8 @@ void OnDeinit(const int reason)
     g_swingRenderer.Reset();
     g_structureRenderer.Reset();
     g_liquidityRenderer.Reset();
+    g_poiRenderer.Reset();
+    g_deliveryRenderer.Reset();
 
     //--- Close logger file handle
     CMNSLogger::Close();
@@ -586,6 +605,8 @@ int OnCalculate(const int      rates_total,
     g_swingRenderer.Draw(g_swings, time, limitBars, currentAtr);
     g_structureRenderer.Draw(g_breaks, time, limitBars);
     g_liquidityRenderer.Draw(g_liquidity, time, limitBars);
+    g_poiRenderer.Draw(g_poi, time, limitBars);
+    g_deliveryRenderer.Draw(g_delivery, g_objective, time, close, limitBars);
 
     //--- Force chart refresh to draw changes instantly
     ChartRedraw(0);
