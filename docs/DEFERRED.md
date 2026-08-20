@@ -54,7 +54,7 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-001: CRT / IRL / ERL Terminology Mismatch
 - **ID**: MNS-ISSUE-001
-- **Status**: CLIENT_INPUT_REQUIRED
+- **Status**: ✅ RESOLVED
 - **Severity**: High
 - **Discovered In**: Stage 0 Audit
 - **Origin Module**: Module 013 (Indicator Integration)
@@ -100,7 +100,7 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-003: Historical Delivery Leg & Target (DOL) Data Storage
 - **ID**: MNS-ISSUE-003
-- **Status**: DEFERRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Low
 - **Discovered In**: Stage 0 Audit
 - **Origin Module**: Module 006 (Delivery Structure Engine)
@@ -169,7 +169,7 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-006: Delivery Leg Replacement vs. Archival Rules
 - **ID**: MNS-ISSUE-006
-- **Status**: CLIENT_INPUT_REQUIRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Medium
 - **Discovered In**: Module 006 (Delivery Engine)
 - **Origin Module**: Module 006 (Delivery Structure Engine)
@@ -192,7 +192,7 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-007: Delivery Leg Mitigation Wick Trigger
 - **ID**: MNS-ISSUE-007
-- **Status**: CLIENT_INPUT_REQUIRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Medium
 - **Discovered In**: Module 006 (Delivery Engine)
 - **Origin Module**: Module 006 (Delivery Structure Engine)
@@ -215,7 +215,7 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-008: Session GMT Hour Ranges
 - **ID**: MNS-ISSUE-008
-- **Status**: CLIENT_INPUT_REQUIRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Medium
 - **Discovered In**: Module 007 (Liquidity Engine)
 - **Origin Module**: Module 007 (Liquidity Engine)
@@ -238,7 +238,7 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-009: Liquidity Pool Buffer Capacity Limit
 - **ID**: MNS-ISSUE-009
-- **Status**: CLIENT_INPUT_REQUIRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Low
 - **Discovered In**: Module 007 (Liquidity Engine)
 - **Origin Module**: Module 007 (Liquidity Engine)
@@ -261,7 +261,7 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-010: Opposing HTF POI Sizing & Scoring Weights
 - **ID**: MNS-ISSUE-010
-- **Status**: CLIENT_INPUT_REQUIRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Medium
 - **Discovered In**: Module 009 (Objective Engine)
 - **Origin Module**: Module 009 (Objective Engine)
@@ -284,7 +284,7 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-011: Candlestick Strong Rejection Formula
 - **ID**: MNS-ISSUE-011
-- **Status**: CLIENT_INPUT_REQUIRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Medium
 - **Discovered In**: Module 010 (Confirmation Engine)
 - **Origin Module**: Module 010 (Confirmation Engine)
