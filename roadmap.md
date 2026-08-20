@@ -206,7 +206,29 @@ Indicator Integration (CIndicatorIntegration)
 
 First time the engine outputs are visible on a chart. Consolidates all visualization, chart rendering, Object Manager, dashboard layout, and user-facing settings UI (built on top of INF-004 Configuration System).
 
----
+### Stage Progress
+
+| Stage | Description | Status |
+|---|---|---|
+| Stage 0 | Architecture & Dependency Audit | ✅ Complete |
+| Stage 1 | Indicator Shell & Lifecycle Coordinator | ✅ Complete — 0 errors, 0 warnings. All 11 engines initialized on GBPUSD H1. |
+| **Stage 2** | **Swing Point & Structure Renderers** | ✅ **Complete** — Swing arrows and BOS/CHoCH lines rendering live on chart. 0 errors, 0 warnings. |
+| Stage 3 | Liquidity Pool Renderers (BSL/SSL/EQH/EQL) | ⬜ Pending |
+| Stage 4 | Advanced Zone Renderers (OB/FVG/Delivery/DOL) | ⬜ Pending |
+| Stage 5 | Dashboard & Info Panel | ⬜ Pending |
+| Stage 6 | Configuration Binding (INF-004 integration) | ⬜ Pending |
+| Stage 7 | Session Renderers & Premium/Discount Zones | ⬜ Pending |
+| Stage 8 | Visual Performance Profiling | ⬜ Pending |
+| Stage 9 | Integration Testing | ⬜ Pending |
+| Stage 10 | Production Build & Release | ⬜ Pending |
+
+### Stage 2 Deliverables
+- `Include/MNS/MNSStyle.mqh` — Centralized visual style tokens (`SIndicatorStyle`)
+- `Include/MNS/Renderers/CSwingRenderer.mqh` — External + internal swing arrow rendering
+- `Include/MNS/Renderers/CStructureRenderer.mqh` — BOS / iBOS / CHoCH line + label rendering
+- `Indicators/MNS_Indicator.mq5` — Updated to call renderers in `OnCalculate()`
+
+
 
 ## Module 014
 

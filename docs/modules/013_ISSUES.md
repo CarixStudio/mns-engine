@@ -17,7 +17,13 @@ Each issue is assigned a unique identifier (`M13-ISSUE-001`, `M13-ISSUE-002`, et
 
 ## 2. Active Module 013 Issues
 
-No issues are currently blocking **Stage 1** (Indicator Shell & Lifecycle coordinator) because Stage 1 is concerned with rates sync and main coordinators without rendering chart objects. The following issues are open and will affect upcoming visual design stages:
+**Stage 1 — COMPLETE** ✅  
+`MNS_Indicator.mq5` compiled: 0 errors, 0 warnings.  
+`MNS_TestHarness`: 320/320 PASSED.  
+`MNS_Indicator` attached to GBPUSD H1: all 11 engines initialized and logged correctly.  
+Stage 1 exit criteria fully satisfied. Proceeding to Stage 2.
+
+The following issues are open and will affect Stage 2 and later visual stages:
 
 ### M13-ISSUE-005: Visual Theme Style Customization
 - **ID**: M13-ISSUE-005
@@ -182,4 +188,72 @@ No issues are currently blocking **Stage 1** (Indicator Shell & Lifecycle coordi
 
 ## 5. Resolved Issues
 
-None. (No issues have been resolved as no code changes or client clarifications have occurred.)
+### M13-ISSUE-003: Unresolved Terminology (CRT, IRL, ERL)
+- **ID**: M13-ISSUE-003
+- **Global Tracking ID**: [MNS-ISSUE-001](../DEFERRED.md#mns-issue-001-crt--irl--erl-terminology-mismatch)
+- **Status**: ✅ RESOLVED
+- **Resolution**: **CLIENT-Q001 = OPTION A** (mns-answers2.md).
+  - CRT, IRL, ERL are **not implemented** as separate strategy concepts.
+  - Existing Swings, Liquidity Pools, POIs, OBs, FVGs, and DOL are the authoritative visual representations.
+  - No new engines or fields were added to `CLiquidityEngine` or `CPOIEngine`.
+  - Stage 2 renderers consume `CSwingDetector` and `CBreakDetector` outputs only.
+- **Resolved In**: Stage 2 — Swing Point & Structure Renderers
+- **Commit Reference**: Module013-Stage2
+
+---
+
+### Historical Delivery Legs and Targets (M13-ISSUE-001 sub-question)
+- **Origin Issue ID**: M13-ISSUE-001 / MNS-ISSUE-003
+- **Status**: ✅ RESOLVED
+- **Resolution**: **CLIENT-Q002 = OPTION A — ACTIVE ONLY** (mns-answers2.md).
+  - Indicator renders only the current active delivery leg and current active DOL target.
+  - Historical delivery legs are **not rendered** on the chart.
+  - Historical events are retained in journals/analytics only (engine state, not visual layer).
+  - No refactoring of `CDeliveryStructureEngine` or `CObjectiveEngine` required.
+- **Resolved In**: Stage 2 (decision confirmed; rendering deferred to Stage 4)
+- **Commit Reference**: Module013-Stage2
+
+---
+
+### M13-ISSUE-005: Visual Theme Style Customization
+- **ID**: M13-ISSUE-005
+- **Status**: ✅ RESOLVED (Partial — foundation complete)
+- **Resolution**: `MNSStyle.mqh` created in Stage 2 with `SIndicatorStyle` struct.
+  - All visual style tokens (colors, line styles, font sizes, arrow codes) centralized in one struct.
+  - No RGB literals hardcoded inside renderer methods (`CSwingRenderer.mqh`, `CStructureRenderer.mqh`).
+  - All renderers consume `SIndicatorStyle` exclusively.
+- **Resolved In**: Stage 2 — `Include/MNS/MNSStyle.mqh`
+- **Commit Reference**: Module013-Stage2
+
+---
+
+### M13-ISSUE-006: Visual Object Capping and Performance Overhead
+- **ID**: M13-ISSUE-006
+- **Status**: ✅ RESOLVED (Partial — capping implemented; profiling deferred to Stage 8)
+- **Resolution**:
+  - `InpMaxRenderedSwings` (default 50) and `InpMaxRenderedBreaks` (default 20) added as indicator `input` parameters.
+  - Both renderers enforce capping: objects beyond the limit are deleted automatically on each `Draw()` call.
+  - `GetConfirmationTime()` optimized from O(N) linear scan to O(1) direct `barIndex` lookup.
+- **Resolved In**: Stage 2 — `CSwingRenderer.mqh`, `CStructureRenderer.mqh`
+- **Commit Reference**: Module013-Stage2
+
+---
+
+### MNS-ISSUE-006, MNS-ISSUE-007, MNS-ISSUE-008, MNS-ISSUE-009, MNS-ISSUE-010, MNS-ISSUE-011 — Core Engine Heuristics
+- **Status**: ✅ RESOLVED by **CLIENT-Q003 = OPTION B** (mns-answers2.md).
+- **Resolution Summary** (all locked values):
+
+| Rule | Locked Value |
+|---|---|
+| Session Filter | `UseSessionFilter = false` by default |
+| Liquidity buffer | 128 records; priority eviction order locked |
+| Strong Rejection | 5-condition formula: wick ≥50%, close ≥70%, body direction, range ≥0.5 ATR, POI context |
+| Delivery Mitigation | Wick = MITIGATION_STARTED; body close beyond protected level = INVALIDATED |
+| Delivery Replacement | Same-direction BOS only with 5 strict conditions |
+| Delivery Archival | Confirmed opposite CHoCH only; wick CHoCH does NOT archive |
+| HTF POI Score | HTF significance = 15/100; Liquidity relationship = 5/100 |
+
+- **Note**: These rules affect core engine behaviour (Modules 005–012). No Stage 2 code changes required. Engines already implemented with these values per prior modules.
+- **Resolved In**: mns-answers2.md CLIENT-Q003
+- **Commit Reference**: Module013-Stage2
+

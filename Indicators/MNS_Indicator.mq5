@@ -82,6 +82,11 @@
 #include <MNS/CEntryEngine.mqh>
 #include <MNS/CRiskEngine.mqh>
 
+// Visual Renderers layer — Stage 2
+#include <MNS/MNSStyle.mqh>
+#include <MNS/Renderers/CSwingRenderer.mqh>
+#include <MNS/Renderers/CStructureRenderer.mqh>
+
 //+------------------------------------------------------------------+
 //| Indicator Input Parameters                                        |
 //+------------------------------------------------------------------+
@@ -102,6 +107,16 @@ input double InpDefaultRisk      = 1.0;
 /// @brief Enable verbose debug-level logging to the Experts tab.
 /// When false, only INFO/WARN/ERROR messages are printed.
 input bool   InpDebugLogging     = false;
+
+//--- Visual Renderer Capping inputs (Stage 2)
+/// @brief Maximum historical swing points to render on the chart.
+input int    InpMaxRenderedSwings = 50;
+
+/// @brief Maximum historical BOS/CHoCH lines to render on the chart.
+input int    InpMaxRenderedBreaks = 20;
+
+/// @brief Maximum history bars to process (prevents engine array overflows).
+input int    InpMaxHistoryBars   = 1000;
 
 //+------------------------------------------------------------------+
 //| Module Identifier                                                 |
@@ -139,6 +154,10 @@ CObjectiveEngine         g_objective;
 CConfirmationEngine      g_confirmation;
 CEntryEngine             g_entry;
 CRiskEngine              g_risk;
+
+//--- Renderer Object Instances (Stage 2)
+CSwingRenderer           g_swingRenderer;
+CStructureRenderer       g_structureRenderer;
 
 //+------------------------------------------------------------------+
 //| Lifecycle State                                                   |
@@ -298,6 +317,21 @@ int OnInit()
     }
     MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "CRiskEngine initialized.");
 
+    // --- Visual Renderers Initialization (Stage 2)
+    SIndicatorStyle style;
+    style.Reset(); // Load default premium visual tokens
+    if (!g_swingRenderer.Initialize(style, InpMaxRenderedSwings))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CSwingRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
+    if (!g_structureRenderer.Initialize(style, InpMaxRenderedBreaks))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CStructureRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
+    MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "Visual renderers initialized.");
+
     //--- All engines initialized successfully
     g_isReady = true;
     MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE,
@@ -335,6 +369,10 @@ void OnDeinit(const int reason)
     g_breaks.Reset();
     g_structure.Reset();
     g_swings.Reset();
+
+    //--- Clear all visual objects on deinitialization (Stage 2)
+    g_swingRenderer.Reset();
+    g_structureRenderer.Reset();
 
     //--- Close logger file handle
     CMNSLogger::Close();
@@ -382,15 +420,23 @@ int OnCalculate(const int      rates_total,
                 const long     &volume[],
                 const int      &spread[])
 {
+    //--- Log entry for debugging attach/recalculation issues
+    Print(StringFormat("[DEBUG] [MNS_Indicator] OnCalculate: rates_total=%d, prev_calculated=%d, live_time=%s", 
+                       rates_total, prev_calculated, TimeToString(time[0], TIME_DATE|TIME_MINUTES|TIME_SECONDS)));
+
     //--- Guard: engines must be fully initialized before any processing.
     if (!g_isReady)
+    {
+        Print("[DEBUG] [MNS_Indicator] Engines not ready yet.");
         return 0;
+    }
 
     //--- Guard: require a minimum history depth before any engine update.
-    //    Returning 0 tells MT5 to call OnCalculate() again on the next tick,
-    //    which will keep retrying until enough bars are available.
     if (rates_total < MNS_INDICATOR_MIN_BARS)
+    {
+        Print(StringFormat("[DEBUG] [MNS_Indicator] rates_total (%d) < MIN_BARS (%d). Returning early.", rates_total, MNS_INDICATOR_MIN_BARS));
         return 0;
+    }
 
     //--- Set all price arrays as time-series (index 0 = newest bar).
     //    This matches the data contract expected by all engine Update() calls.
@@ -440,16 +486,19 @@ int OnCalculate(const int      rates_total,
     double minBreakDist = MathMax(2.0 * g_point, 0.10 * currentAtr);
 
     //--- Determine prevCalculated to pass to engines.
-    //    On first call (prev_calculated == 0): engines will trigger a full
-    //    history rescan internally.
-    int prevCalc = prev_calculated;
+    //    We restrict the history processed by the engines to prevent filling fixed-size buffers.
+    int limitBars = MathMin(rates_total, InpMaxHistoryBars);
+    
+    //    On every update of the limited window, we pass 0 as prev_calculated to
+    //    force engines to cleanly rebuild their states for the active window.
+    int prevCalc = 0;
 
     //+------------------------------------------------------------------+
     //| Engine Update Sequence — strict DAG order                        |
     //+------------------------------------------------------------------+
 
     // 1. CSwingDetector — root of the engine graph
-    g_swings.Update(high, low, time, rates_total, prevCalc);
+    g_swings.Update(high, low, time, limitBars, prevCalc);
 
     // 2. CStructureEngine — depends on CSwingDetector output
     g_structure.Update(g_swings, currentAtr);
@@ -457,12 +506,12 @@ int OnCalculate(const int      rates_total,
     // 3. CBreakDetector — depends on CSwingDetector + CStructureEngine
     g_breaks.Update(g_swings, g_structure,
                     high, low, close, open, time,
-                    rates_total, prevCalc, currentAtr);
+                    limitBars, prevCalc, currentAtr);
 
     // 4. COrderFlowEngine — depends on CSwingDetector + CStructureEngine + CBreakDetector
     g_orderFlow.Update(g_swings, g_structure, g_breaks,
                        high, low, close, open, time,
-                       rates_total, prevCalc, currentAtr);
+                       limitBars, prevCalc, currentAtr);
 
     // 5. CDeliveryStructureEngine
     //    — depends on CSwingDetector, CStructureEngine, CBreakDetector, COrderFlowEngine
@@ -473,32 +522,32 @@ int OnCalculate(const int      rates_total,
     double prevDolPrice = g_objective.GetDolPrice();
     g_delivery.Update(g_swings, g_structure, g_breaks, g_orderFlow,
                       high, low, close, open, time,
-                      rates_total, prevCalc, currentAtr,
+                      limitBars, prevCalc, currentAtr,
                       prevDolPrice);
 
     // 6. CLiquidityEngine — depends on CSwingDetector + CDeliveryStructureEngine
     g_liquidity.Update(g_swings, g_delivery,
                        high, low, close, open, time,
-                       rates_total, prevCalc, currentAtr, minBreakDist);
+                       limitBars, prevCalc, currentAtr, minBreakDist);
 
     // 7. CPOIEngine
     //    — depends on CSwingDetector, CStructureEngine, CBreakDetector,
     //                 CLiquidityEngine, CDeliveryStructureEngine
     g_poi.Update(g_swings, g_structure, g_breaks, g_liquidity, g_delivery,
                  high, low, close, open, time,
-                 rates_total, prevCalc, currentAtr);
+                 limitBars, prevCalc, currentAtr);
 
     // 8. CObjectiveEngine — depends on all previous engines
     g_objective.Update(g_swings, g_structure, g_breaks, g_orderFlow,
                        g_delivery, g_liquidity, g_poi,
                        high, low, close, open, time,
-                       rates_total, prevCalc, currentAtr);
+                       limitBars, prevCalc, currentAtr);
 
     // 9. CConfirmationEngine — depends on all previous engines
     g_confirmation.Update(g_swings, g_structure, g_breaks, g_orderFlow,
                           g_delivery, g_liquidity, g_poi, g_objective,
                           high, low, close, open, time,
-                          rates_total, prevCalc, currentAtr);
+                          limitBars, prevCalc, currentAtr);
 
     // 10. CEntryEngine
     //     — depends on CConfirmationEngine, CObjectiveEngine, CStructureEngine,
@@ -508,12 +557,26 @@ int OnCalculate(const int      rates_total,
     double currentSpread = (ArraySize(spread) > 0) ? (double)spread[0] : 0.0;
     g_entry.Update(g_confirmation, g_objective, g_structure, g_delivery, g_poi,
                    high, low, close, open, time,
-                   rates_total, prevCalc, currentSpread);
+                   limitBars, prevCalc, currentSpread);
 
     // 11. CRiskEngine — no bar-driven Update().
     //     SizePreTrade() and UpdateActiveManagement() are called on-demand
     //     by the EA or the Stage 5 dashboard when a signal is active.
     //     No call is made here.
+
+    //+------------------------------------------------------------------+
+    //| Visual Renderers execution (Stage 2)                              |
+    //+------------------------------------------------------------------+
+    int numSwings = g_swings.GetExternalSwingCount() + g_swings.GetInternalSwingCount();
+    int numBreaks = g_breaks.GetBreakCount();
+    Print(StringFormat("[DEBUG] [MNS_Indicator] Renderers: ExtSwingCount=%d, IntSwingCount=%d, BreakCount=%d", 
+                       g_swings.GetExternalSwingCount(), g_swings.GetInternalSwingCount(), numBreaks));
+
+    g_swingRenderer.Draw(g_swings, time, limitBars, currentAtr);
+    g_structureRenderer.Draw(g_breaks, time, limitBars);
+
+    //--- Force chart refresh to draw changes instantly
+    ChartRedraw(0);
 
     //+------------------------------------------------------------------+
     //| Diagnostic heartbeat (debug mode only)                            |

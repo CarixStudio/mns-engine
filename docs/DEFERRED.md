@@ -33,19 +33,22 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 | ID | Issue | Status | Severity | Discovered | Revisit | Category |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **MNS-ISSUE-001** | [CRT / IRL / ERL Terminology Mismatch](#mns-issue-001-crt--irl--erl-terminology-mismatch) | CLIENT_INPUT_REQUIRED | High | Stage 0 | Stage 4 | Specification Ambiguity |
+| **MNS-ISSUE-001** | [CRT / IRL / ERL Terminology Mismatch](#mns-issue-001-crt--irl--erl-terminology-mismatch) | ✅ RESOLVED | High | Stage 0 | Stage 4 | Specification Ambiguity |
 | **MNS-ISSUE-002** | [Unification of Risk Sizing & Spread Filters](#mns-issue-002-unification-of-risk-sizing--spread-filters-in-configuration) | DEFERRED | Medium | Stage 0 | Stage 6 | Configuration Inconsistency |
-| **MNS-ISSUE-003** | [Historical Delivery Leg & Target Data Storage](#mns-issue-003-historical-delivery-leg--target-dol-data-storage) | DEFERRED | Low | Stage 0 | Post-Indicator | Technical Debt / Feature |
+| **MNS-ISSUE-003** | [Historical Delivery Leg & Target Data Storage](#mns-issue-003-historical-delivery-leg--target-dol-data-storage) | ✅ RESOLVED | Low | Stage 0 | Post-Indicator | Technical Debt / Feature |
 | **MNS-ISSUE-004** | [Session Parameter & GMT Centralization](#mns-issue-004-session-parameter--gmt-offset-centralization) | DEFERRED | Low | Stage 0 | Stage 6 | Configuration Inconsistency |
 | **MNS-ISSUE-005** | [SSwingPoint Monotonic ID Extension](#mns-issue-005-sswingpoint-monotonic-id-extension) | DEFERRED | Low | Module 002 | Phase 2 | Technical Debt |
-| **MNS-ISSUE-006** | [Delivery Leg Replacement vs. Archival Rules](#mns-issue-006-delivery-leg-replacement-vs-archival-rules) | CLIENT_INPUT_REQUIRED | Medium | Module 006 | Stage 4 | Specification Ambiguity |
-| **MNS-ISSUE-007** | [Delivery Leg Mitigation Wick Trigger](#mns-issue-007-delivery-leg-mitigation-wick-trigger) | CLIENT_INPUT_REQUIRED | Medium | Module 006 | Stage 4 | Specification Ambiguity |
-| **MNS-ISSUE-008** | [Session GMT Hour Ranges](#mns-issue-008-session-gmt-hour-ranges) | CLIENT_INPUT_REQUIRED | Medium | Module 007 | Stage 5 | Specification Ambiguity |
-| **MNS-ISSUE-009** | [Liquidity Pool Buffer Capacity Limit](#mns-issue-009-liquidity-pool-buffer-capacity-limit) | CLIENT_INPUT_REQUIRED | Low | Module 007 | Stage 8 | Specification Ambiguity |
-| **MNS-ISSUE-010** | [Opposing HTF POI Sizing & Scoring Weights](#mns-issue-010-opposing-htf-poi-sizing--scoring-weights) | CLIENT_INPUT_REQUIRED | Medium | Module 009 | Stage 9 | Specification Ambiguity |
-| **MNS-ISSUE-011** | [Candlestick Strong Rejection Formula](#mns-issue-011-candlestick-strong-rejection-formula) | CLIENT_INPUT_REQUIRED | Medium | Module 010 | Stage 9 | Specification Ambiguity |
+| **MNS-ISSUE-006** | [Delivery Leg Replacement vs. Archival Rules](#mns-issue-006-delivery-leg-replacement-vs-archival-rules) | ✅ RESOLVED | Medium | Module 006 | Stage 4 | Specification Ambiguity |
+| **MNS-ISSUE-007** | [Delivery Leg Mitigation Wick Trigger](#mns-issue-007-delivery-leg-mitigation-wick-trigger) | ✅ RESOLVED | Medium | Module 006 | Stage 4 | Specification Ambiguity |
+| **MNS-ISSUE-008** | [Session GMT Hour Ranges](#mns-issue-008-session-gmt-hour-ranges) | ✅ RESOLVED | Medium | Module 007 | Stage 5 | Specification Ambiguity |
+| **MNS-ISSUE-009** | [Liquidity Pool Buffer Capacity Limit](#mns-issue-009-liquidity-pool-buffer-capacity-limit) | ✅ RESOLVED | Low | Module 007 | Stage 8 | Specification Ambiguity |
+| **MNS-ISSUE-010** | [Opposing HTF POI Sizing & Scoring Weights](#mns-issue-010-opposing-htf-poi-sizing--scoring-weights) | ✅ RESOLVED | Medium | Module 009 | Stage 9 | Specification Ambiguity |
+| **MNS-ISSUE-011** | [Candlestick Strong Rejection Formula](#mns-issue-011-candlestick-strong-rejection-formula) | ✅ RESOLVED | Medium | Module 010 | Stage 9 | Specification Ambiguity |
+
+> **Resolution Source**: MNS-ISSUE-001 resolved by CLIENT-Q001; MNS-ISSUE-003 resolved by CLIENT-Q002; MNS-ISSUE-006 through 011 resolved by CLIENT-Q003. All decisions locked in `mns-answers2.md`. Commit: Module013-Stage2.
 
 ---
+
 
 ## 5. Global Issue Records
 

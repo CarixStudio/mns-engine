@@ -1,0 +1,82 @@
+//+------------------------------------------------------------------+
+//|                                                     MNSStyle.mqh |
+//|                              MNS Trading Engine — Module 013     |
+//|                                                                  |
+//| Purpose:                                                         |
+//|   Centralizes all visual style tokens (colors, line styles,      |
+//|   font settings, size defaults) to ensure a unified design       |
+//|   theme and avoid hardcoding visual constants inside renderers.  |
+//|                                                                  |
+//| Dependencies:                                                    |
+//|   None.                                                          |
+//+------------------------------------------------------------------+
+#ifndef __MNS_STYLE_MQH__
+#define __MNS_STYLE_MQH__
+
+//-------------------------------------------------------------------
+//| SIndicatorStyle Struct                                          |
+////-------------------------------------------------------------------
+struct SIndicatorStyle {
+    //--- Color Palette
+    color colorExtHigh; ///< Color for External Swing Highs (Bullish/Lime)
+    color colorExtLow;  ///< Color for External Swing Lows (Bearish/Red)
+    color colorIntHigh; ///< Color for Internal Swing Highs (Muted Bullish/Teal)
+    color colorIntLow;  ///< Color for Internal Swing Lows (Muted Bearish/Magenta)
+
+    color colorBullishBOS;   ///< Color for Bullish BOS (Lime)
+    color colorBearishBOS;   ///< Color for Bearish BOS (Red)
+    color colorBullishCHoCH; ///< Color for Bullish CHoCH (Orange/Warning)
+    color colorBearishCHoCH; ///< Color for Bearish CHoCH (Orange/Warning)
+
+    //--- Sizes and Widths
+    int sizeExtArrow;   ///< Size of External Swing arrows (default 2)
+    int sizeIntArrow;   ///< Size of Internal Swing arrows (default 1)
+    int widthBOSLine;   ///< Width of BOS trend lines (default 1)
+    int widthCHoCHLine; ///< Width of CHoCH trend lines (default 1)
+
+    //--- Typography
+    string fontName;   ///< Font name (default MT5 Font "Arial")
+    int fontSizeLabel; ///< Font size for text labels (default 9)
+
+    //--- Symbol Codes (Wingdings)
+    int codeArrowHigh; ///< Wingdings code for high swing (default 233 - Up Arrow)
+    int codeArrowLow;  ///< Wingdings code for low swing (default 234 - Down Arrow)
+
+    //--- Line Styles
+    ENUM_LINE_STYLE styleBOS;   ///< Line style for BOS (STYLE_DASH)
+    ENUM_LINE_STYLE styleCHoCH; ///< Line style for CHoCH (STYLE_DOT)
+
+    /// @brief Resets the style structure to safe default premium theme values.
+    void Reset() {
+        // Default premium theme colors (matching UI/UX spec: Lime/Red/Orange/Gray)
+        colorExtHigh = clrLime;
+        colorExtLow = clrRed;
+        colorIntHigh = clrTeal;
+        colorIntLow = clrDarkMagenta;
+
+        colorBullishBOS = clrLime;
+        colorBearishBOS = clrRed;
+        colorBullishCHoCH = clrOrange;
+        colorBearishCHoCH = clrOrange;
+
+        // Default widths and sizes
+        sizeExtArrow = 2;
+        sizeIntArrow = 1;
+        widthBOSLine = 1;
+        widthCHoCHLine = 1;
+
+        // Typography settings
+        fontName = "Arial";
+        fontSizeLabel = 9;
+
+        // Arrow codes (Wingdings: 233 is Up Arrow, 234 is Down Arrow)
+        codeArrowHigh = 233;
+        codeArrowLow = 234;
+
+        // Line styles
+        styleBOS = STYLE_DASH;
+        styleCHoCH = STYLE_DOT;
+    }
+};
+
+#endif // __MNS_STYLE_MQH__
