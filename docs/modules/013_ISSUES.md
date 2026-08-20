@@ -17,11 +17,12 @@ Each issue is assigned a unique identifier (`M13-ISSUE-001`, `M13-ISSUE-002`, et
 
 ## 2. Active Module 013 Issues
 
-**Stage 1, 2, 3 & 4 — COMPLETE** ✅  
+**Stage 1, 2, 3, 4 & 5 — COMPLETE** ✅  
 - Stage 1: `MNS_Indicator.mq5` shell compiled and verified.
 - Stage 2: Swing and Structure renderers completed and verified.
 - Stage 3: Liquidity Pool renderers completed and verified.
-- Stage 4: Advanced Zone Renderers (OB / FVG / Delivery / DOL) completed and verified (0 errors, 0 warnings). Proceeding to Stage 5.
+- Stage 4: Advanced Zone Renderers (OB / FVG / Delivery / DOL) completed and verified.
+- Stage 5: Dashboard & Info Panel completed and verified (0 errors, 0 warnings). Proceeding to Stage 6.
 
 The following issues are open and will affect Stage 2 and later visual stages:
 

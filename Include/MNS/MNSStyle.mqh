@@ -75,6 +75,17 @@ struct SIndicatorStyle {
     //--- DOL Target
     color colorDOL;           ///< Active DOL horizontal level (Gold)
 
+    //--- Dashboard Styling
+    color colorDashboardBg;      ///< Dashboard panel background (C'20,20,20')
+    color colorDashboardBorder;  ///< Dashboard border color (C'50,50,50')
+    color colorDashboardText;    ///< Default label text color (clrWhite)
+    color colorDashboardHeader;  ///< Header text color (clrLime)
+    color colorDashboardValue;   ///< Default value text color (clrLightGray)
+    string fontNameDashboard;    ///< Font for dashboard labels ("Arial")
+    int fontSizeDashboard;       ///< Font size for dashboard labels (8)
+    int rowHeightDashboard;      ///< Height of each text row in px (16)
+    int paddingDashboard;        ///< Padding inside the panel in px (10)
+
     /// @brief Resets the style structure to safe default premium theme values.
     void Reset() {
         // Default premium theme colors (matching UI/UX spec: Lime/Red/Orange/Gray)
@@ -134,6 +145,17 @@ struct SIndicatorStyle {
 
         // DOL default style
         colorDOL = clrGold;
+
+        // Dashboard default styles
+        colorDashboardBg = C'20, 20, 20';
+        colorDashboardBorder = C'50, 50, 50';
+        colorDashboardText = clrWhite;
+        colorDashboardHeader = clrLime;
+        colorDashboardValue = clrLightGray;
+        fontNameDashboard = "Arial";
+        fontSizeDashboard = 8;
+        rowHeightDashboard = 16;
+        paddingDashboard = 10;
     }
 };
 

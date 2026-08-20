@@ -89,6 +89,7 @@
 #include <MNS/Renderers/CLiquidityRenderer.mqh>
 #include <MNS/Renderers/CPOIRenderer.mqh>
 #include <MNS/Renderers/CDeliveryRenderer.mqh>
+#include <MNS/Renderers/CDashboardRenderer.mqh>
 
 //+------------------------------------------------------------------+
 //| Indicator Input Parameters                                        |
@@ -126,6 +127,18 @@ input int    InpMaxRenderedPOIs = 20;
 
 /// @brief Maximum history bars to process (prevents engine array overflows).
 input int    InpMaxHistoryBars   = 1000;
+
+/// @brief Enable visual rendering of the status dashboard.
+input bool   InpShowDashboard    = true;
+
+/// @brief X offset in pixels from chart corner for dashboard.
+input int    InpDashboardX       = 20;
+
+/// @brief Y offset in pixels from chart corner for dashboard.
+input int    InpDashboardY       = 20;
+
+/// @brief Width of dashboard panel in pixels.
+input int    InpDashboardWidth   = 250;
 
 //+------------------------------------------------------------------+
 //| Module Identifier                                                 |
@@ -170,6 +183,7 @@ CStructureRenderer       g_structureRenderer;
 CLiquidityRenderer       g_liquidityRenderer;
 CPOIRenderer             g_poiRenderer;
 CDeliveryRenderer        g_deliveryRenderer;
+CDashboardRenderer       g_dashboardRenderer;
 
 //+------------------------------------------------------------------+
 //| Lifecycle State                                                   |
@@ -357,6 +371,11 @@ int OnInit()
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CDeliveryRenderer::Initialize() FAILED.");
         return INIT_FAILED;
     }
+    if (!g_dashboardRenderer.Initialize(style, InpShowDashboard, InpDashboardX, InpDashboardY, InpDashboardWidth))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CDashboardRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
     MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "Visual renderers initialized.");
 
     //--- All engines initialized successfully
@@ -403,6 +422,7 @@ void OnDeinit(const int reason)
     g_liquidityRenderer.Reset();
     g_poiRenderer.Reset();
     g_deliveryRenderer.Reset();
+    g_dashboardRenderer.Reset();
 
     //--- Close logger file handle
     CMNSLogger::Close();
@@ -607,6 +627,9 @@ int OnCalculate(const int      rates_total,
     g_liquidityRenderer.Draw(g_liquidity, time, limitBars);
     g_poiRenderer.Draw(g_poi, time, limitBars);
     g_deliveryRenderer.Draw(g_delivery, g_objective, time, close, limitBars);
+
+    datetime gmtTime = time[0] - InpGmtOffset * 3600;
+    g_dashboardRenderer.Draw(g_poi, g_delivery, g_objective, g_swings, g_structure, g_breaks, g_orderFlow, g_liquidity, g_confirmation, g_entry, g_risk, time, close, limitBars, gmtTime);
 
     //--- Force chart refresh to draw changes instantly
     ChartRedraw(0);
