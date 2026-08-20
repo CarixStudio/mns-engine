@@ -202,118 +202,88 @@ A delivery leg transitions from `DELIVERY_ACTIVE` to `DELIVERY_MITIGATED` when a
 **Implementation Status:**
 Completed. In `CDeliveryStructureEngine.mqh`, a wick low below invalidation for bullish or wick high above invalidation for bearish triggers the transition to `DELIVERY_MITIGATED`.
 
-### OPEN-013 — Delivery Leg Replacement vs Archival Rules
+### OPEN-013 — Delivery Leg Replacement vs Archival Rules [RESOLVED]
+ 
+ **Source:** Kenny Strategy 2 - Section 3.3
+ 
+ **Resolution:**
+ A same-direction BOS confirmed by a body close replaces the current delivery leg (marking it `DELIVERY_REPLACED`), provided it breaks a new structural level and establishes a new protected swing point. A confirmed opposite-direction CHoCH archives the active delivery leg (marking it `DELIVERY_ARCHIVED`).
+ 
+ **Implementation Status:**
+ Completed. `CDeliveryStructureEngine.mqh` implements this replacement and archival logic correctly using structural break IDs and direction checks.
+ 
+ ---
+ 
+ ### OPEN-014 — Mitigation Trigger Criteria [RESOLVED]
+ 
+ **Source:** Kenny Strategy 2 - Section 3.3
+ 
+ **Resolution:**
+ A delivery leg is marked as mitigated (`DELIVERY_MITIGATED`) when a candle wick enters the originating POI or delivery origin zone. A wick touch does NOT invalidate the delivery leg; only a confirmed body close beyond the protected invalidation level triggers invalidation.
+ 
+ **Implementation Status:**
+ Completed. `CDeliveryStructureEngine.mqh` separates mitigation wick interactions from close-based invalidation logic.
+ 
+ ---
+ 
+ ### OPEN-015 — Session Boundaries Time Range and Timezone Offset [RESOLVED]
+ 
+ **Source:** Kenny Strategy 2 - Section 4.1 & 4.2
+ 
+ **Resolution:**
+ Standard session GMT ranges are: Asia (00:00 - 08:00 GMT), London (08:00 - 16:00 GMT), New York (13:00 - 21:00 GMT). These are classified using the configured `m_gmtOffset` to map to broker local time.
+ 
+ **Implementation Status:**
+ Completed. `CLiquidityEngine.mqh` uses these boundaries for classifying session highs/lows.
+ 
+ ---
+ 
+ ### OPEN-016 — Liquidity Pool Database Size Limit (Memory Management) [RESOLVED]
+ 
+ **Source:** Module 007 Design / MQL5 Constraints
+ 
+ **Resolution:**
+ A circular fixed buffer of 128 elements per symbol/timeframe is approved. Deterministic eviction priority is enforced: Archived -> Invalidated -> Consumed -> oldest Swept -> oldest Broken. Active DOL and HTF liquidity pools must never be evicted.
+ 
+ **Implementation Status:**
+ Completed. `CLiquidityEngine.mqh` implements the 128-element buffer and the prioritized eviction algorithm.
+ 
+ ---
+ 
+ ### OPEN-017 — HTF Opposing POI Score Weights [RESOLVED]
+ 
+ **Source:** Kenny Strategy 2 - Section 6.2 & 6.3
+ 
+ **Resolution:**
+ HTF significance is assigned 15 points, and liquidity relationship is assigned 5 points, as part of a 100-point POI scoring system.
+ 
+ **Implementation Status:**
+ Completed. `CPOIEngine.mqh` implements this 100-point POI confidence ranking score.
+ 
+ ---
+ 
+ ### OPEN-018 — Session Hours and Customization [RESOLVED]
+ 
+ **Source:** Kenny Strategy 2 - Section 6.2 & Section 4.1
+ 
+ **Resolution:**
+ Session hours are not mandatory trade execution filters (SessionFilter = false by default), but are used for classifying session highs/lows and scoring. Configuration parameters are centralized.
+ 
+ **Implementation Status:**
+ Completed. `CLiquidityEngine.mqh` and configuration systems centralize session configurations.
+ 
+ ---
+ 
+ ### OPEN-019 — Confirmation Candle Rejection Criteria [RESOLVED]
+ 
+ **Source:** Kenny Strategy 2 - Section 7.5
+ 
+ **Resolution:**
+ A strong rejection requires a directional wick >= 50% of the total candle range, close location >= 70% of the range (in the direction of rejection), directional candle body confirmation, and total range >= 0.50 ATR(14).
+ 
+ **Implementation Status:**
+ Completed. `CConfirmationEngine.mqh` calculates these ratios on the trigger candle to identify valid candlestick rejections.
 
-**Source:** Kenny Strategy 2 - Section 3.3
-
-**The ambiguity:**
-It is unclear how an active delivery leg is transitioned when a new delivery leg in the same direction or opposite direction is confirmed.
-
-**Current decision:**
-If a new BOS confirms a newer delivery leg in the same direction, the old leg becomes `DELIVERY_REPLACED`. If the direction reverses, the old leg becomes `DELIVERY_ARCHIVED`.
-
-**Question for client:**
-Does a new break of structure in the same direction replace the old delivery leg, and does a complete trend flip archive the previous leg?
-
----
-
-### OPEN-014 — Mitigation Trigger Criteria
-
-**Source:** Kenny Strategy 2 - Section 3.3
-
-**The ambiguity:**
-Section 3.3 lists `DELIVERY_MITIGATED` as a lifecycle state, but the exact price-action trigger is not defined.
-
-**Current decision:**
-A delivery leg transitions from `DELIVERY_ACTIVE` or `DELIVERY_OBJECTIVE_REACHED` to `DELIVERY_MITIGATED` when price retraces and a candle wick touches or goes beyond the origin swing price (or the invalidation level) without generating a candle body close past it.
-
-**Question for client:**
-Is a delivery leg considered "mitigated" the moment a candle wick touches or retraces past the origin price level (without closing past it)?
-
-## Module 007 — CLiquidityEngine
-
----
-
-### OPEN-015 — Session Boundaries Time Range and Timezone Offset
-
-**Source:** Kenny Strategy 2 - Section 4.1 & 4.2
-
-**The ambiguity:**
-Section 4 refers to "Session highs" and "Session lows" (London, New York, Asia) as BSL/SSL sources, but the exact GMT hour boundaries and daily session boundaries are not specified.
-
-**Current decision:**
-Standard session GMT ranges are implemented: Asia (00:00 - 08:00 GMT), London (08:00 - 16:00 GMT), New York (13:00 - 21:00 GMT). These are converted to broker local time using the configured `m_gmtOffset` parameter.
-
-**Question for client:**
-Do the GMT session boundaries (Asia: 00:00-08:00, London: 08:00-16:00, NY: 13:00-21:00) align with your trading definitions?
-
----
-
-### OPEN-016 — Liquidity Pool Database Size Limit (Memory Management)
-
-**Source:** Module 007 Design / MQL5 Constraints
-
-**The ambiguity:**
-To avoid dynamic memory fragmentation in MQL5 during backtests, we propose storing pools in a fixed-size array instead of dynamic scaling.
-
-**Current decision:**
-A circular-style fixed array of 128 elements is used to store liquidity pools to guarantee O(1) allocation and maximum execution speed. When the buffer is full, the oldest inactive/broken pool is overwritten.
-
-**Question for client:**
-Is a fixed-size history of 128 active/inactive liquidity pools per chart sufficient for your analysis, or is a larger limit required?
-
----
-
-## Module 009 — CObjectiveEngine
-
----
-
-### OPEN-017 — HTF Opposing POI Score Weights
-
-**Source:** Kenny Strategy 2 - Section 6.2 & 6.3
-
-**The ambiguity:**
-Section 6.2 lists "Opposing HTF POI boundary" as a priority candidate target for the Draw on Liquidity (DOL), but the scoring weights table in Section 6.3 does not explicitly map how this candidate's structural significance or HTF significance weights are scored.
-
-**Current decision:**
-We have mapped its base scoring to a liquidity strength of 5 and HTF significance of 15.
-
-**Question for client:**
-What are the exact selection score weights (compatibility, strength, HTF significance, etc.) that should be assigned to an opposing HTF POI boundary target?
-
----
-
-### OPEN-018 — Session Hours and Customization
-
-**Source:** Kenny Strategy 2 - Section 6.2 & Section 4.1
-
-**The ambiguity:**
-The strategy references "Session liquidity" as a candidate target for the DOL, but standard session hours (Tokyo, London, NY) are not defined.
-
-**Current decision:**
-Default session hours are implemented in the scanner logic: Tokyo (00:00 - 08:00), London (08:00 - 16:00), NY (13:00 - 21:00). These are converted to broker local timezone.
-
-**Question for client:**
-Do the default session hours (Tokyo: 00:00-08:00, London: 08:00-16:00, NY: 13:00-21:00) align with your target session parameters, and should they be made user-configurable?
-
----
-
-## Module 010 — CConfirmationEngine
-
----
-
-### OPEN-019 — Confirmation Candle Rejection Criteria
-
-**Source:** Kenny Strategy 2 - Section 7.5
-
-**The ambiguity:**
-The strategy references "Strong rejection" as a mandatory confirmation filter when a liquidity sweep is absent, but it does not specify a mathematical or visual rule for what constitutes a strong candlestick rejection.
-
-**Current decision:**
-We have inferred a standard wick-to-candle-range calculation: a bullish rejection requires the lower wick to be >= 50% of the total candle high-low range and the candle to close in the upper half of its range. A bearish rejection requires the upper wick to be >= 50% of the total candle range and the candle to close in the lower half.
-
-**Question for client:**
-What are the exact candlestick mathematical rules (e.g., lower/upper wick to body ratio, pin bar patterns, or engulfing closes) that define a "Strong rejection" for execution confirmation?
 
 ---
 
