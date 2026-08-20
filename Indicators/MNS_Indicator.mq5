@@ -422,6 +422,10 @@ void OnDeinit(const int reason)
     g_liquidityRenderer.Reset();
     g_poiRenderer.Reset();
     g_deliveryRenderer.Reset();
+    if (reason == REASON_REMOVE)
+    {
+        g_dashboardRenderer.DeleteGlobalVariables();
+    }
     g_dashboardRenderer.Reset();
 
     //--- Close logger file handle
@@ -652,4 +656,12 @@ int OnCalculate(const int      rates_total,
     //--- Return rates_total to indicate all bars are processed.
     //    MT5 will not force a full recalculation on the next tick.
     return rates_total;
+}
+
+//+------------------------------------------------------------------+
+//| OnChartEvent — Handles user interaction and drag-and-drop        |
+//+------------------------------------------------------------------+
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
+{
+    g_dashboardRenderer.HandleChartEvent(id, lparam, dparam, sparam);
 }

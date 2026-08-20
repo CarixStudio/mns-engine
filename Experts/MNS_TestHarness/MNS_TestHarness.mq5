@@ -1440,10 +1440,10 @@ void RunModule010Tests()
     AssertTrue(confEngine.GetDirection() == CONFIRM_DIR_BULLISH, "Confirmation direction is BULLISH");
 
     // Test 2: Liquidity Sweep OR Strong Rejection + Structural Trigger -> CONFIRMED
-    testOpen[1] = 1.2000;
+    testOpen[1] = 1.1960;
     testClose[1] = 1.2000;
     testLow[1] = 1.1900;
-    testHigh[1] = 1.2000;
+    testHigh[1] = 1.2010;
     
     confEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, objEngine, testHigh, testLow, testClose, testOpen, testTime, CONF_TEST_BARS, 0, 0.0050);
     
@@ -1553,10 +1553,10 @@ void RunModule011Tests()
     AssertTrue(confEngine.GetConfirmationState() == CONFIRMATION_STATE_PENDING, "Setup is PENDING after POI touch");
 
     // Test 2: Trigger Confirmation Engine to CONFIRMED
-    testOpen[1] = 1.2000;
+    testOpen[1] = 1.1960;
     testClose[1] = 1.2000;
     testLow[1] = 1.1900;
-    testHigh[1] = 1.2000;
+    testHigh[1] = 1.2010;
     confEngine.Update(swingDet, structEng, breakDet, ofEngine, delEngine, liqEngine, poiEngine, objEngine, testHigh, testLow, testClose, testOpen, testTime, ENTRY_TEST_BARS, 0, 0.0050);
     AssertTrue(confEngine.GetConfirmationState() == CONFIRMATION_STATE_CONFIRMED, "Setup is CONFIRMED in confirmation engine");
 

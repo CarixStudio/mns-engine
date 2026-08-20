@@ -6,12 +6,8 @@
 //|   Visual controller for drawing the graphical dashboard card and |
 //|   info rows on the chart, displaying the active states of all    |
 //|   11 core engines in a desaturated, high-contrast visual style.   |
-//|                                                                  |
-//| Dependencies:                                                    |
-//|   MNSTypes.mqh                                                   |
-//|   MNSStyle.mqh                                                   |
-//|   MNSUtils.mqh                                                   |
-//|   Engines (CSwingDetector, CStructureEngine, etc.)               |
+//|   Supports interactive dragging, collapse/expand, lock/unlock,   |
+//|   show/hide, position reset, and multi-chart instance safety.    |
 //+------------------------------------------------------------------+
 #ifndef __MNS_DASHBOARD_RENDERER_MQH__
 #define __MNS_DASHBOARD_RENDERER_MQH__
@@ -39,109 +35,210 @@ class CDashboardRenderer
 {
 private:
     SIndicatorStyle m_style;           ///< Cached visual style configuration
-    bool            m_showDashboard;   ///< Visibility switch
-    int             m_xOffset;         ///< Distance from the right edge
-    int             m_yOffset;         ///< Distance from the top edge
-    int             m_width;           ///< Dashboard panel width
-    bool            m_isInitialized;    ///< Initialization guard flag
+    bool            m_showDashboard;   ///< Input setting switch
+    int             m_xOffset;         ///< Distance from the left edge (pixels)
+    int             m_yOffset;         ///< Distance from the top edge (pixels)
+    int             m_width;           ///< Dashboard panel width (pixels)
+    bool            m_isInitialized;   ///< Initialization guard flag
 
-    /// @brief Creates or updates a row of labels in the dashboard.
-    /// @param index Row index (0..13).
-    /// @param labelName Left-aligned label text.
-    /// @param valueText Right-aligned value text.
-    /// @param valueColor Color of the value text.
-    void SetRowText(int index, string labelName, string valueText, color valueColor)
+    // Interactive states
+    bool            m_isLocked;        ///< Drag lock state
+    bool            m_isCollapsed;     ///< Collapsed HUD state
+    bool            m_isVisible;       ///< Visibility switch
+    bool            m_isDragging;      ///< True if currently dragging
+    int             m_dragDx;          ///< Drag X offset from mouse down
+    int             m_dragDy;          ///< Drag Y offset from mouse down
+
+    /// @brief Resolves a collision-safe object name by appending ChartID.
+    string GetObjName(string baseName) const
     {
-        string lblName = StringFormat("MNS_Dash_Lbl_%d", index);
-        string valName = StringFormat("MNS_Dash_Val_%d", index);
+        return StringFormat("%s_%I64d", baseName, ChartID());
+    }
 
-        int yPos = m_yOffset + m_style.paddingDashboard + index * m_style.rowHeightDashboard;
-
-        // 1. Draw Left Label
-        if (ObjectFind(0, lblName) < 0)
+    /// @brief Creates a rectangle label object on the chart.
+    void CreateRect(string name, color bgColor, color borderColor, int width, int height)
+    {
+        string objName = GetObjName(name);
+        if (ObjectFind(0, objName) < 0)
         {
-            if (!ObjectCreate(0, lblName, OBJ_LABEL, 0, 0, 0))
+            if (!ObjectCreate(0, objName, OBJ_RECTANGLE_LABEL, 0, 0, 0))
             {
-                Print(StringFormat("[ERROR] CDashboardRenderer: Failed to create label %s. Error: %d", lblName, GetLastError()));
+                Print(StringFormat("[ERROR] CDashboardRenderer: Failed to create rect %s. Error: %d", objName, GetLastError()));
                 return;
             }
         }
-        
-        color lblColor = (index == 0) ? m_style.colorDashboardHeader : m_style.colorDashboardText;
-        ObjectSetString(0, lblName, OBJPROP_TEXT, labelName);
-        ObjectSetString(0, lblName, OBJPROP_FONT, m_style.fontNameDashboard);
-        ObjectSetInteger(0, lblName, OBJPROP_FONTSIZE, m_style.fontSizeDashboard);
-        ObjectSetInteger(0, lblName, OBJPROP_COLOR, lblColor);
-        ObjectSetInteger(0, lblName, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-        ObjectSetInteger(0, lblName, OBJPROP_XDISTANCE, m_xOffset + m_width - m_style.paddingDashboard);
-        ObjectSetInteger(0, lblName, OBJPROP_YDISTANCE, yPos);
-        ObjectSetInteger(0, lblName, OBJPROP_ANCHOR, ANCHOR_RIGHT_UPPER); // Both align right for left labels? No, let's align left!
-        // Wait, for top-right corner, X coordinates are measured from the right edge.
-        // So X distance is distance from the right edge.
-        // A label placed at X = Offset + padding has its left edge at that offset.
-        // If we set anchor to ANCHOR_LEFT_UPPER:
-        // Left edge of the label sits at X distance from the right edge.
-        // In MT5, CORNER_RIGHT_UPPER measures X positive to the LEFT from the right edge.
-        // So a larger X distance means it is further to the left (further inside the chart).
-        // Therefore:
-        // Right side of the dashboard is at X = Offset.
-        // Left side of the dashboard is at X = Offset + Width.
-        // So to align text to the LEFT side of the dashboard, X distance from the right edge should be:
-        //   X = Offset + Width - padding.
-        // And the text anchor should be ANCHOR_LEFT_UPPER (or ANCHOR_RIGHT_UPPER if X is Offset + padding).
-        // Let's verify the MT5 coordinate math:
-        // Corner = CORNER_RIGHT_UPPER.
-        // X distance = distance from right border of chart.
-        // Offset = 20. Width = 250.
-        // The background panel spans from X = 20 (right edge of card) to X = 270 (left edge of card).
-        // So:
-        // - Left-aligned text (labels) should sit near the left edge of the card, i.e., X = 270 - padding = 250.
-        //   Anchor = ANCHOR_LEFT_UPPER.
-        // - Right-aligned text (values) should sit near the right edge of the card, i.e., X = 20 + padding = 30.
-        //   Anchor = ANCHOR_RIGHT_UPPER.
-        // Let's double-check this:
-        // Yes! Since X is measured from the right edge going leftward:
-        // Left side of dashboard is at `m_xOffset + m_width`.
-        // So left-aligned text should be at `m_xOffset + m_width - m_style.paddingDashboard`, anchored `ANCHOR_LEFT_UPPER`.
-        // Right-aligned text should be at `m_xOffset + m_style.paddingDashboard`, anchored `ANCHOR_RIGHT_UPPER`.
-        // This is perfectly correct!
-        ObjectSetInteger(0, lblName, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
-        ObjectSetInteger(0, lblName, OBJPROP_XDISTANCE, m_xOffset + m_width - m_style.paddingDashboard);
-        ObjectSetInteger(0, lblName, OBJPROP_YDISTANCE, yPos);
-        ObjectSetInteger(0, lblName, OBJPROP_SELECTABLE, false);
-        ObjectSetInteger(0, lblName, OBJPROP_SELECTED, false);
-        ObjectSetInteger(0, lblName, OBJPROP_HIDDEN, true);
+        ObjectSetInteger(0, objName, OBJPROP_XDISTANCE, m_xOffset);
+        ObjectSetInteger(0, objName, OBJPROP_YDISTANCE, m_yOffset);
+        ObjectSetInteger(0, objName, OBJPROP_XSIZE, width);
+        ObjectSetInteger(0, objName, OBJPROP_YSIZE, height);
+        ObjectSetInteger(0, objName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, objName, OBJPROP_BGCOLOR, bgColor);
+        ObjectSetInteger(0, objName, OBJPROP_COLOR, borderColor);
+        ObjectSetInteger(0, objName, OBJPROP_BORDER_TYPE, BORDER_FLAT);
+        ObjectSetInteger(0, objName, OBJPROP_BACK, false); // sit on top
+        ObjectSetInteger(0, objName, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, objName, OBJPROP_SELECTED, false);
+        ObjectSetInteger(0, objName, OBJPROP_HIDDEN, true);
+    }
 
-        // 2. Draw Right Value Label
-        if (StringLen(valueText) > 0)
+    /// @brief Creates a text label object on the chart.
+    void CreateLabel(string name, string text, color txtColor, string font, int fontSize, ENUM_ANCHOR_POINT anchor)
+    {
+        string objName = GetObjName(name);
+        bool isNew = false;
+        if (ObjectFind(0, objName) < 0)
         {
-            if (ObjectFind(0, valName) < 0)
+            if (!ObjectCreate(0, objName, OBJ_LABEL, 0, 0, 0))
             {
-                if (!ObjectCreate(0, valName, OBJ_LABEL, 0, 0, 0))
-                {
-                    Print(StringFormat("[ERROR] CDashboardRenderer: Failed to create value %s. Error: %d", valName, GetLastError()));
-                    return;
-                }
+                Print(StringFormat("[ERROR] CDashboardRenderer: Failed to create label %s. Error: %d", objName, GetLastError()));
+                return;
             }
+            isNew = true;
+        }
+        if (isNew)
+        {
+            ObjectSetString(0, objName, OBJPROP_TEXT, text);
+        }
+        ObjectSetString(0, objName, OBJPROP_FONT, font);
+        ObjectSetInteger(0, objName, OBJPROP_FONTSIZE, fontSize);
+        ObjectSetInteger(0, objName, OBJPROP_COLOR, txtColor);
+        ObjectSetInteger(0, objName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, objName, OBJPROP_ANCHOR, anchor);
+        ObjectSetInteger(0, objName, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, objName, OBJPROP_SELECTED, false);
+        ObjectSetInteger(0, objName, OBJPROP_HIDDEN, true);
+    }
+
+    /// @brief Creates an interactive button object on the chart.
+    void CreateButton(string name, string text, int width, int height, string font, int fontSize, color bgColor, color txtColor)
+    {
+        string objName = GetObjName(name);
+        if (ObjectFind(0, objName) < 0)
+        {
+            if (!ObjectCreate(0, objName, OBJ_BUTTON, 0, 0, 0))
+            {
+                Print(StringFormat("[ERROR] CDashboardRenderer: Failed to create button %s. Error: %d", objName, GetLastError()));
+                return;
+            }
+        }
+        ObjectSetString(0, objName, OBJPROP_TEXT, text);
+        ObjectSetString(0, objName, OBJPROP_FONT, font);
+        ObjectSetInteger(0, objName, OBJPROP_FONTSIZE, fontSize);
+        ObjectSetInteger(0, objName, OBJPROP_XSIZE, width);
+        ObjectSetInteger(0, objName, OBJPROP_YSIZE, height);
+        ObjectSetInteger(0, objName, OBJPROP_BGCOLOR, bgColor);
+        ObjectSetInteger(0, objName, OBJPROP_COLOR, txtColor);
+        ObjectSetInteger(0, objName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, objName, OBJPROP_STATE, false);
+        ObjectSetInteger(0, objName, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, objName, OBJPROP_SELECTED, false);
+        ObjectSetInteger(0, objName, OBJPROP_HIDDEN, true);
+    }
+
+    /// @brief Sets object visibility without destroying it.
+    void SetObjectVisibility(string name, bool visible)
+    {
+        string objName = GetObjName(name);
+        if (ObjectFind(0, objName) >= 0)
+        {
+            ObjectSetInteger(0, objName, OBJPROP_TIMEFRAMES, visible ? OBJ_ALL_PERIODS : OBJ_NO_PERIODS);
+        }
+    }
+
+    /// @brief Helper to delete a chart object safely.
+    void DeleteObject(string name)
+    {
+        string objName = GetObjName(name);
+        if (ObjectFind(0, objName) >= 0)
+        {
+            ObjectDelete(0, objName);
+        }
+    }
+
+    /// @brief Updates value label text and color.
+    void UpdateRowText(string nameSuffix, string valueText, color valueColor)
+    {
+        string valName = GetObjName("MNS_DASH_VAL_" + nameSuffix);
+        if (ObjectFind(0, valName) >= 0)
+        {
             ObjectSetString(0, valName, OBJPROP_TEXT, valueText);
-            ObjectSetString(0, valName, OBJPROP_FONT, m_style.fontNameDashboard);
-            ObjectSetInteger(0, valName, OBJPROP_FONTSIZE, m_style.fontSizeDashboard);
             ObjectSetInteger(0, valName, OBJPROP_COLOR, valueColor);
-            ObjectSetInteger(0, valName, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-            ObjectSetInteger(0, valName, OBJPROP_ANCHOR, ANCHOR_RIGHT_UPPER);
-            ObjectSetInteger(0, valName, OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
-            ObjectSetInteger(0, valName, OBJPROP_YDISTANCE, yPos);
-            ObjectSetInteger(0, valName, OBJPROP_SELECTABLE, false);
-            ObjectSetInteger(0, valName, OBJPROP_SELECTED, false);
-            ObjectSetInteger(0, valName, OBJPROP_HIDDEN, true);
         }
-        else
-        {
-            if (ObjectFind(0, valName) >= 0)
-            {
-                ObjectDelete(0, valName);
-            }
-        }
+    }
+
+    /// @brief Hides all detail info rows (used when collapsed or hidden).
+    void HideDetailRows()
+    {
+        SetObjectVisibility("MNS_DASH_LBL_SYMBOL", false);
+        SetObjectVisibility("MNS_DASH_VAL_SYMBOL", false);
+        SetObjectVisibility("MNS_DASH_LBL_TREND", false);
+        SetObjectVisibility("MNS_DASH_VAL_TREND", false);
+        SetObjectVisibility("MNS_DASH_LBL_PHASE", false);
+        SetObjectVisibility("MNS_DASH_VAL_PHASE", false);
+        SetObjectVisibility("MNS_DASH_LBL_STRUCTURE", false);
+        SetObjectVisibility("MNS_DASH_VAL_STRUCTURE", false);
+        SetObjectVisibility("MNS_DASH_LBL_BOS", false);
+        SetObjectVisibility("MNS_DASH_VAL_BOS", false);
+        SetObjectVisibility("MNS_DASH_LBL_CHOCH", false);
+        SetObjectVisibility("MNS_DASH_VAL_CHOCH", false);
+        SetObjectVisibility("MNS_DASH_LBL_BIAS", false);
+        SetObjectVisibility("MNS_DASH_VAL_BIAS", false);
+        SetObjectVisibility("MNS_DASH_LBL_DOL", false);
+        SetObjectVisibility("MNS_DASH_VAL_DOL", false);
+        SetObjectVisibility("MNS_DASH_LBL_POI", false);
+        SetObjectVisibility("MNS_DASH_VAL_POI", false);
+        SetObjectVisibility("MNS_DASH_LBL_ZONE", false);
+        SetObjectVisibility("MNS_DASH_VAL_ZONE", false);
+        SetObjectVisibility("MNS_DASH_LBL_SESSION", false);
+        SetObjectVisibility("MNS_DASH_VAL_SESSION", false);
+        SetObjectVisibility("MNS_DASH_LBL_CONFIRMATION", false);
+        SetObjectVisibility("MNS_DASH_VAL_CONFIRMATION", false);
+        SetObjectVisibility("MNS_DASH_LBL_ENTRY", false);
+        SetObjectVisibility("MNS_DASH_VAL_ENTRY", false);
+    }
+
+    /// @brief Shows all detail info rows (used when expanded).
+    void ShowDetailRows()
+    {
+        SetObjectVisibility("MNS_DASH_LBL_SYMBOL", true);
+        SetObjectVisibility("MNS_DASH_VAL_SYMBOL", true);
+        SetObjectVisibility("MNS_DASH_LBL_TREND", true);
+        SetObjectVisibility("MNS_DASH_VAL_TREND", true);
+        SetObjectVisibility("MNS_DASH_LBL_PHASE", true);
+        SetObjectVisibility("MNS_DASH_VAL_PHASE", true);
+        SetObjectVisibility("MNS_DASH_LBL_STRUCTURE", true);
+        SetObjectVisibility("MNS_DASH_VAL_STRUCTURE", true);
+        SetObjectVisibility("MNS_DASH_LBL_BOS", true);
+        SetObjectVisibility("MNS_DASH_VAL_BOS", true);
+        SetObjectVisibility("MNS_DASH_LBL_CHOCH", true);
+        SetObjectVisibility("MNS_DASH_VAL_CHOCH", true);
+        SetObjectVisibility("MNS_DASH_LBL_BIAS", true);
+        SetObjectVisibility("MNS_DASH_VAL_BIAS", true);
+        SetObjectVisibility("MNS_DASH_LBL_DOL", true);
+        SetObjectVisibility("MNS_DASH_VAL_DOL", true);
+        SetObjectVisibility("MNS_DASH_LBL_POI", true);
+        SetObjectVisibility("MNS_DASH_VAL_POI", true);
+        SetObjectVisibility("MNS_DASH_LBL_ZONE", true);
+        SetObjectVisibility("MNS_DASH_VAL_ZONE", true);
+        SetObjectVisibility("MNS_DASH_LBL_SESSION", true);
+        SetObjectVisibility("MNS_DASH_VAL_SESSION", true);
+        SetObjectVisibility("MNS_DASH_LBL_CONFIRMATION", true);
+        SetObjectVisibility("MNS_DASH_VAL_CONFIRMATION", true);
+        SetObjectVisibility("MNS_DASH_LBL_ENTRY", true);
+        SetObjectVisibility("MNS_DASH_VAL_ENTRY", true);
+    }
+
+    /// @brief Positions a row of labels horizontally inside the panel.
+    void SetRowPosition(string nameSuffix, int yPos)
+    {
+        string lblName = GetObjName("MNS_DASH_LBL_" + nameSuffix);
+        string valName = GetObjName("MNS_DASH_VAL_" + nameSuffix);
+
+        ObjectSetInteger(0, lblName, OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
+        ObjectSetInteger(0, lblName, OBJPROP_YDISTANCE, yPos);
+
+        ObjectSetInteger(0, valName, OBJPROP_XDISTANCE, m_xOffset + m_width - m_style.paddingDashboard);
+        ObjectSetInteger(0, valName, OBJPROP_YDISTANCE, yPos);
     }
 
     /// @brief Helper to convert DOL type enum to string.
@@ -186,7 +283,13 @@ public:
           m_xOffset(20),
           m_yOffset(20),
           m_width(250),
-          m_isInitialized(false)
+          m_isInitialized(false),
+          m_isLocked(false),
+          m_isCollapsed(false),
+          m_isVisible(true),
+          m_isDragging(false),
+          m_dragDx(0),
+          m_dragDy(0)
     {
         m_style.Reset();
     }
@@ -202,27 +305,509 @@ public:
     {
         m_style = style;
         m_showDashboard = showDashboard;
-        m_xOffset = x;
-        m_yOffset = y;
         m_width = (width > 100) ? width : 250;
         m_isInitialized = true;
+        
+        m_isLocked = false;
+        m_isCollapsed = false;
+        m_isVisible = showDashboard;
+        m_isDragging = false;
+        m_dragDx = 0;
+        m_dragDy = 0;
+
+        // Set default offsets based on chart dimensions (anchored to top-right)
+        int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+        m_xOffset = chartWidth - m_width - x;
+        m_yOffset = y;
+
+        // Load persisted states if they exist
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+        if (GlobalVariableCheck(prefix + "X"))
+            m_xOffset = (int)GlobalVariableGet(prefix + "X");
+        if (GlobalVariableCheck(prefix + "Y"))
+            m_yOffset = (int)GlobalVariableGet(prefix + "Y");
+        if (GlobalVariableCheck(prefix + "COLLAPSED"))
+            m_isCollapsed = (GlobalVariableGet(prefix + "COLLAPSED") > 0.5);
+        if (GlobalVariableCheck(prefix + "LOCKED"))
+            m_isLocked = (GlobalVariableGet(prefix + "LOCKED") > 0.5);
+        if (GlobalVariableCheck(prefix + "VISIBLE"))
+            m_isVisible = (GlobalVariableGet(prefix + "VISIBLE") > 0.5);
+
+        // Apply input setting override
+        m_isVisible = m_showDashboard && m_isVisible;
+
+        // Clean up any orphaned components
+        Reset();
+
+        // Enable chart mouse move events
+        ChartSetInteger(0, CHART_EVENT_MOUSE_MOVE, true);
+
+        // Build visual layout
+        RedrawLayout();
+
         return true;
     }
 
-    /// @brief Deletes all dashboard objects from the chart.
+    /// @brief Clears all dashboard objects from the chart.
     void Reset()
     {
-        if (ObjectFind(0, "MNS_Dash_Bg") >= 0)
+        ChartSetInteger(0, CHART_MOUSE_SCROLL, true);
+
+        DeleteObject("MNS_DASH_PANEL");
+        DeleteObject("MNS_DASH_HEADER");
+        DeleteObject("MNS_DASH_TITLE");
+        DeleteObject("MNS_DASH_BTN_LOCK");
+        DeleteObject("MNS_DASH_BTN_COLLAPSE");
+        DeleteObject("MNS_DASH_BTN_HIDE");
+        DeleteObject("MNS_DASH_BTN_RESET");
+        DeleteObject("MNS_DASH_BTN_RESTORE");
+
+        DeleteObject("MNS_DASH_LBL_SYMBOL");
+        DeleteObject("MNS_DASH_VAL_SYMBOL");
+        DeleteObject("MNS_DASH_LBL_TREND");
+        DeleteObject("MNS_DASH_VAL_TREND");
+        DeleteObject("MNS_DASH_LBL_PHASE");
+        DeleteObject("MNS_DASH_VAL_PHASE");
+        DeleteObject("MNS_DASH_LBL_STRUCTURE");
+        DeleteObject("MNS_DASH_VAL_STRUCTURE");
+        DeleteObject("MNS_DASH_LBL_BOS");
+        DeleteObject("MNS_DASH_VAL_BOS");
+        DeleteObject("MNS_DASH_LBL_CHOCH");
+        DeleteObject("MNS_DASH_VAL_CHOCH");
+        DeleteObject("MNS_DASH_LBL_BIAS");
+        DeleteObject("MNS_DASH_VAL_BIAS");
+        DeleteObject("MNS_DASH_LBL_DOL");
+        DeleteObject("MNS_DASH_VAL_DOL");
+        DeleteObject("MNS_DASH_LBL_POI");
+        DeleteObject("MNS_DASH_VAL_POI");
+        DeleteObject("MNS_DASH_LBL_ZONE");
+        DeleteObject("MNS_DASH_VAL_ZONE");
+        DeleteObject("MNS_DASH_LBL_SESSION");
+        DeleteObject("MNS_DASH_VAL_SESSION");
+        DeleteObject("MNS_DASH_LBL_CONFIRMATION");
+        DeleteObject("MNS_DASH_VAL_CONFIRMATION");
+        DeleteObject("MNS_DASH_LBL_ENTRY");
+        DeleteObject("MNS_DASH_VAL_ENTRY");
+    }
+
+    /// @brief Cleans up terminal global variables associated with this chart.
+    void DeleteGlobalVariables()
+    {
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+        GlobalVariableDel(prefix + "X");
+        GlobalVariableDel(prefix + "Y");
+        GlobalVariableDel(prefix + "COLLAPSED");
+        GlobalVariableDel(prefix + "LOCKED");
+        GlobalVariableDel(prefix + "VISIBLE");
+    }
+
+    /// @brief Returns the height of the dashboard panel.
+    int GetCurrentHeight() const
+    {
+        if (m_isCollapsed)
+            return 22 + m_style.paddingDashboard;
+        // Header (22) + padding top (8) + 13 rows * 16 (208) + padding before button (8) + button height (18) + padding bottom (8) = 264 px
+        return 22 + m_style.paddingDashboard + 13 * m_style.rowHeightDashboard + m_style.paddingDashboard + 18 + m_style.paddingDashboard;
+    }
+
+    /// @brief Ensures all layout objects are created and formatted.
+    void EnsureObjectsExist()
+    {
+        // 1. Restore Button
+        CreateButton("MNS_DASH_BTN_RESTORE", "MNS", 40, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
+
+        // 2. Main Background Panel
+        CreateRect("MNS_DASH_PANEL", m_style.colorDashboardBg, m_style.colorDashboardBorder, m_width, GetCurrentHeight());
+
+        // 3. Header Background Panel
+        CreateRect("MNS_DASH_HEADER", C'30, 30, 30', m_style.colorDashboardBorder, m_width, 22);
+
+        // 4. Header Title
+        CreateLabel("MNS_DASH_TITLE", "MNS ENGINE v1.0", m_style.colorDashboardHeader, m_style.fontNameDashboard, m_style.fontSizeDashboard + 1, ANCHOR_LEFT_UPPER);
+
+        // 5. Header Control Buttons
+        CreateButton("MNS_DASH_BTN_LOCK", m_isLocked ? "🔒" : "🔓", 16, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
+        CreateButton("MNS_DASH_BTN_COLLAPSE", m_isCollapsed ? "＋" : "－", 16, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
+        CreateButton("MNS_DASH_BTN_HIDE", "×", 16, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
+
+        // 6. Detail rows (labels)
+        CreateLabel("MNS_DASH_LBL_SYMBOL", "Symbol/TF:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_TREND", "Trend:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_PHASE", "Phase:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_STRUCTURE", "Structure:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_BOS", "Last BOS:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_CHOCH", "Last CHoCH:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_BIAS", "Liq Bias:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_DOL", "Active DOL:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_POI", "Active POI:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_ZONE", "DR Zone:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_SESSION", "Session:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_CONFIRMATION", "Confirmation:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_ENTRY", "Entry:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+
+        // 7. Detail values (default initial texts to avoid empty labels showing default MT5 "Label" text)
+        CreateLabel("MNS_DASH_VAL_SYMBOL", "N/A", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_TREND", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_PHASE", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_STRUCTURE", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_BOS", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_CHOCH", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_BIAS", "Balanced", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_DOL", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_POI", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_ZONE", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_SESSION", "Closed", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_CONFIRMATION", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_ENTRY", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+
+        // 8. Bottom Reset Button
+        CreateButton("MNS_DASH_BTN_RESET", "Reset Position", m_width - m_style.paddingDashboard * 2, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
+    }
+
+    /// @brief Reposition all panel objects relative to current offsets.
+    void UpdateObjectPositions()
+    {
+        if (!m_isInitialized) return;
+
+        // If hidden, restore button sits at top-right by default
+        if (!m_isVisible)
         {
-            ObjectDelete(0, "MNS_Dash_Bg");
+            string restoreBtnName = GetObjName("MNS_DASH_BTN_RESTORE");
+            int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+            ObjectSetInteger(0, restoreBtnName, OBJPROP_XDISTANCE, chartWidth - 50);
+            ObjectSetInteger(0, restoreBtnName, OBJPROP_YDISTANCE, 20);
+            return;
         }
 
-        for (int i = 0; i < 14; i++)
+        // Panel & Header
+        ObjectSetInteger(0, GetObjName("MNS_DASH_PANEL"), OBJPROP_XDISTANCE, m_xOffset);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_PANEL"), OBJPROP_YDISTANCE, m_yOffset);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_HEADER"), OBJPROP_XDISTANCE, m_xOffset);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_HEADER"), OBJPROP_YDISTANCE, m_yOffset);
+
+        // Header Title
+        ObjectSetInteger(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_YDISTANCE, m_yOffset + 4);
+
+        // Controls
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_XDISTANCE, m_xOffset + m_width - 56);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_YDISTANCE, m_yOffset + 2);
+
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_XDISTANCE, m_xOffset + m_width - 38);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_YDISTANCE, m_yOffset + 2);
+
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_HIDE"), OBJPROP_XDISTANCE, m_xOffset + m_width - 20);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_HIDE"), OBJPROP_YDISTANCE, m_yOffset + 2);
+
+        // Detail rows (if expanded)
+        if (!m_isCollapsed)
         {
-            string lblName = StringFormat("MNS_Dash_Lbl_%d", i);
-            string valName = StringFormat("MNS_Dash_Val_%d", i);
-            if (ObjectFind(0, lblName) >= 0) ObjectDelete(0, lblName);
-            if (ObjectFind(0, valName) >= 0) ObjectDelete(0, valName);
+            int startY = m_yOffset + 22 + m_style.paddingDashboard;
+            
+            SetRowPosition("SYMBOL", startY + 0 * m_style.rowHeightDashboard);
+            SetRowPosition("TREND", startY + 1 * m_style.rowHeightDashboard);
+            SetRowPosition("PHASE", startY + 2 * m_style.rowHeightDashboard);
+            SetRowPosition("STRUCTURE", startY + 3 * m_style.rowHeightDashboard);
+            SetRowPosition("BOS", startY + 4 * m_style.rowHeightDashboard);
+            SetRowPosition("CHOCH", startY + 5 * m_style.rowHeightDashboard);
+            SetRowPosition("BIAS", startY + 6 * m_style.rowHeightDashboard);
+            SetRowPosition("DOL", startY + 7 * m_style.rowHeightDashboard);
+            SetRowPosition("POI", startY + 8 * m_style.rowHeightDashboard);
+            SetRowPosition("ZONE", startY + 9 * m_style.rowHeightDashboard);
+            SetRowPosition("SESSION", startY + 10 * m_style.rowHeightDashboard);
+            SetRowPosition("CONFIRMATION", startY + 11 * m_style.rowHeightDashboard);
+            SetRowPosition("ENTRY", startY + 12 * m_style.rowHeightDashboard);
+
+            // Reset Button
+            ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
+            ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, m_yOffset + 22 + 13 * m_style.rowHeightDashboard + m_style.paddingDashboard * 2);
+        }
+    }
+
+    /// @brief Redraws panel borders, detail row visibilities, and sizes.
+    void RedrawLayout()
+    {
+        if (!m_isInitialized) return;
+
+        EnsureObjectsExist();
+
+        if (!m_isVisible)
+        {
+            SetObjectVisibility("MNS_DASH_PANEL", false);
+            SetObjectVisibility("MNS_DASH_HEADER", false);
+            SetObjectVisibility("MNS_DASH_TITLE", false);
+            SetObjectVisibility("MNS_DASH_BTN_LOCK", false);
+            SetObjectVisibility("MNS_DASH_BTN_COLLAPSE", false);
+            SetObjectVisibility("MNS_DASH_BTN_HIDE", false);
+            SetObjectVisibility("MNS_DASH_BTN_RESET", false);
+            HideDetailRows();
+
+            // Show restore button
+            SetObjectVisibility("MNS_DASH_BTN_RESTORE", true);
+            
+            // Trigger redraw
+            string restoreBtnName = GetObjName("MNS_DASH_BTN_RESTORE");
+            int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+            ObjectSetInteger(0, restoreBtnName, OBJPROP_XDISTANCE, chartWidth - 50);
+            ObjectSetInteger(0, restoreBtnName, OBJPROP_YDISTANCE, 20);
+            return;
+        }
+
+        // Hide restore button
+        SetObjectVisibility("MNS_DASH_BTN_RESTORE", false);
+
+        // Update panel size
+        string panelName = GetObjName("MNS_DASH_PANEL");
+        ObjectSetInteger(0, panelName, OBJPROP_YSIZE, GetCurrentHeight());
+
+        // Header and core layout visible
+        SetObjectVisibility("MNS_DASH_PANEL", true);
+        SetObjectVisibility("MNS_DASH_HEADER", true);
+        SetObjectVisibility("MNS_DASH_TITLE", true);
+        SetObjectVisibility("MNS_DASH_BTN_LOCK", true);
+        SetObjectVisibility("MNS_DASH_BTN_COLLAPSE", true);
+        SetObjectVisibility("MNS_DASH_BTN_HIDE", true);
+
+        // Update button texts
+        ObjectSetString(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_TEXT, m_isLocked ? "🔒" : "🔓");
+        ObjectSetString(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_TEXT, m_isCollapsed ? "＋" : "－");
+
+        if (m_isCollapsed)
+        {
+            HideDetailRows();
+            SetObjectVisibility("MNS_DASH_BTN_RESET", false);
+        }
+        else
+        {
+            ShowDetailRows();
+            SetObjectVisibility("MNS_DASH_BTN_RESET", true);
+        }
+
+        UpdateObjectPositions();
+    }
+
+    /// @brief Toggle dashboard visibility.
+    void SetVisible(bool visible)
+    {
+        m_isVisible = visible;
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+        GlobalVariableSet(prefix + "VISIBLE", m_isVisible ? 1.0 : 0.0);
+        RedrawLayout();
+        ChartRedraw(0);
+    }
+
+    /// @brief Get dashboard visibility.
+    bool IsVisible() const { return m_isVisible; }
+
+    /// @brief Toggle dashboard lock.
+    void SetLocked(bool locked)
+    {
+        m_isLocked = locked;
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+        GlobalVariableSet(prefix + "LOCKED", m_isLocked ? 1.0 : 0.0);
+        RedrawLayout();
+        ChartRedraw(0);
+    }
+
+    /// @brief Get dashboard lock status.
+    bool IsLocked() const { return m_isLocked; }
+
+    /// @brief Toggle dashboard collapsed state.
+    void SetCollapsed(bool collapsed)
+    {
+        m_isCollapsed = collapsed;
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+        GlobalVariableSet(prefix + "COLLAPSED", m_isCollapsed ? 1.0 : 0.0);
+        RedrawLayout();
+        ChartRedraw(0);
+    }
+
+    /// @brief Get dashboard collapsed state.
+    bool IsCollapsed() const { return m_isCollapsed; }
+
+    /// @brief Set offsets manually.
+    void SetPosition(int x, int y)
+    {
+        m_xOffset = x;
+        m_yOffset = y;
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+        GlobalVariableSet(prefix + "X", (double)m_xOffset);
+        GlobalVariableSet(prefix + "Y", (double)m_yOffset);
+        UpdateObjectPositions();
+        ChartRedraw(0);
+    }
+
+    /// @brief Get current position coordinates.
+    void GetPosition(int &x, int &y) const
+    {
+        x = m_xOffset;
+        y = m_yOffset;
+    }
+
+    /// @brief Restores the dashboard to the default top-right corner.
+    void ResetPosition()
+    {
+        int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+        m_xOffset = chartWidth - m_width - 20;
+        m_yOffset = 20;
+        m_isCollapsed = false;
+        m_isLocked = false;
+        m_isVisible = true;
+
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+        GlobalVariableSet(prefix + "X", (double)m_xOffset);
+        GlobalVariableSet(prefix + "Y", (double)m_yOffset);
+        GlobalVariableSet(prefix + "COLLAPSED", 0.0);
+        GlobalVariableSet(prefix + "LOCKED", 0.0);
+        GlobalVariableSet(prefix + "VISIBLE", 1.0);
+
+        RedrawLayout();
+        ChartRedraw(0);
+    }
+
+    /// @brief Processes interactive UI actions from chart events.
+    void HandleChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
+    {
+        if (!m_isInitialized)
+            return;
+
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+
+        // 1. Handle Restore Button (when hidden)
+        if (!m_isVisible)
+        {
+            if (id == CHARTEVENT_OBJECT_CLICK && sparam == GetObjName("MNS_DASH_BTN_RESTORE"))
+            {
+                SetVisible(true);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESTORE"), OBJPROP_STATE, false);
+            }
+            return;
+        }
+
+        // 2. Handle Expand/Collapse, Lock, Hide, Reset button clicks
+        if (id == CHARTEVENT_OBJECT_CLICK)
+        {
+            string clickedName = sparam;
+            if (clickedName == GetObjName("MNS_DASH_BTN_LOCK"))
+            {
+                m_isLocked = !m_isLocked;
+                GlobalVariableSet(prefix + "LOCKED", m_isLocked ? 1.0 : 0.0);
+                ObjectSetString(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_TEXT, m_isLocked ? "🔒" : "🔓");
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_STATE, false);
+                ChartRedraw(0);
+            }
+            else if (clickedName == GetObjName("MNS_DASH_BTN_COLLAPSE"))
+            {
+                m_isCollapsed = !m_isCollapsed;
+                GlobalVariableSet(prefix + "COLLAPSED", m_isCollapsed ? 1.0 : 0.0);
+                ObjectSetString(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_TEXT, m_isCollapsed ? "＋" : "－");
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_STATE, false);
+                RedrawLayout();
+                ChartRedraw(0);
+            }
+            else if (clickedName == GetObjName("MNS_DASH_BTN_HIDE"))
+            {
+                SetVisible(false);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_HIDE"), OBJPROP_STATE, false);
+            }
+            else if (clickedName == GetObjName("MNS_DASH_BTN_RESET"))
+            {
+                ResetPosition();
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_STATE, false);
+            }
+        }
+
+        // 3. Handle Dragging via Mouse Move
+        if (id == CHARTEVENT_MOUSE_MOVE)
+        {
+            int mouseX = (int)lparam;
+            int mouseY = (int)dparam;
+            int mouseState = (int)sparam;
+            bool leftButtonPressed = (mouseState & 1) == 1;
+
+            if (leftButtonPressed)
+            {
+                if (m_isLocked)
+                {
+                    if (m_isDragging)
+                    {
+                        m_isDragging = false;
+                        ChartSetInteger(0, CHART_MOUSE_SCROLL, true);
+                    }
+                    return;
+                }
+
+                if (!m_isDragging)
+                {
+                    // Drag handle is the header area (Y offset to Y offset + 22)
+                    if (mouseX >= m_xOffset && mouseX <= m_xOffset + m_width &&
+                        mouseY >= m_yOffset && mouseY <= m_yOffset + 22)
+                    {
+                        m_isDragging = true;
+                        m_dragDx = mouseX - m_xOffset;
+                        m_dragDy = mouseY - m_yOffset;
+                        ChartSetInteger(0, CHART_MOUSE_SCROLL, false); // Disable chart scrolling during drag
+                    }
+                }
+                else
+                {
+                    // Update positions
+                    int newX = mouseX - m_dragDx;
+                    int newY = mouseY - m_dragDy;
+
+                    int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+                    int chartHeight = (int)ChartGetInteger(0, CHART_HEIGHT_IN_PIXELS);
+                    int height = GetCurrentHeight();
+
+                    newX = MathMax(0, MathMin(newX, chartWidth - m_width));
+                    newY = MathMax(0, MathMin(newY, chartHeight - height));
+
+                    m_xOffset = newX;
+                    m_yOffset = newY;
+
+                    GlobalVariableSet(prefix + "X", (double)m_xOffset);
+                    GlobalVariableSet(prefix + "Y", (double)m_yOffset);
+
+                    UpdateObjectPositions();
+                    ChartRedraw(0);
+                }
+            }
+            else
+            {
+                if (m_isDragging)
+                {
+                    m_isDragging = false;
+                    ChartSetInteger(0, CHART_MOUSE_SCROLL, true); // Re-enable chart scrolling
+                }
+            }
+        }
+
+        // 4. Handle Chart Resize Boundary Clamping
+        if (id == CHARTEVENT_CHART_CHANGE)
+        {
+            int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+            int chartHeight = (int)ChartGetInteger(0, CHART_HEIGHT_IN_PIXELS);
+            int height = GetCurrentHeight();
+
+            bool adjusted = false;
+            if (m_xOffset > chartWidth - m_width)
+            {
+                m_xOffset = MathMax(0, chartWidth - m_width);
+                adjusted = true;
+            }
+            if (m_yOffset > chartHeight - height)
+            {
+                m_yOffset = MathMax(0, chartHeight - height);
+                adjusted = true;
+            }
+
+            if (adjusted)
+            {
+                GlobalVariableSet(prefix + "X", (double)m_xOffset);
+                GlobalVariableSet(prefix + "Y", (double)m_yOffset);
+                UpdateObjectPositions();
+                ChartRedraw(0);
+            }
         }
     }
 
@@ -246,51 +831,24 @@ public:
         if (!m_isInitialized)
             return;
 
-        if (!m_showDashboard)
+        // If hidden or not shown, ensure cleaned up and return
+        if (!m_isVisible)
         {
-            Reset();
+            RedrawLayout();
             return;
         }
 
-        // ==========================================
-        // 1. RENDER BACKGROUND PANEL
-        // ==========================================
-        int totalRows = 14;
-        int height = m_style.paddingDashboard * 2 + totalRows * m_style.rowHeightDashboard;
-
-        if (ObjectFind(0, "MNS_Dash_Bg") < 0)
-        {
-            if (!ObjectCreate(0, "MNS_Dash_Bg", OBJ_RECTANGLE_LABEL, 0, 0, 0))
-            {
-                Print(StringFormat("[ERROR] CDashboardRenderer: Failed to create background object. Error: %d", GetLastError()));
-                return;
-            }
-        }
-
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_XDISTANCE, m_xOffset);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_YDISTANCE, m_yOffset);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_XSIZE, m_width);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_YSIZE, height);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_BGCOLOR, m_style.colorDashboardBg);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_COLOR, m_style.colorDashboardBorder);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_BORDER_TYPE, BORDER_FLAT);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_BACK, false); // sit on top
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_SELECTABLE, false);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_SELECTED, false);
-        ObjectSetInteger(0, "MNS_Dash_Bg", OBJPROP_HIDDEN, true);
+        // Make sure all layout objects exist
+        EnsureObjectsExist();
 
         // Current price context for calculations
         double currentPrice = (ratesTotal > 1) ? close[1] : close[0];
 
-        // ==========================================
-        // 2. GENERATE AND UPDATE ROWS
-        // ==========================================
+        // ------------------------------------------
+        // Data Extraction
+        // ------------------------------------------
 
-        // Row 0: Header Title
-        SetRowText(0, "MNS ENGINE v1.0", "", m_style.colorDashboardHeader);
-
-        // Row 1: Symbol/Timeframe Context
+        // Timeframe string conversion
         string tfStr = "";
         switch (_Period)
         {
@@ -305,10 +863,8 @@ public:
             case PERIOD_MN1: tfStr = "MN"; break;
             default:         tfStr = StringFormat("M%d", _Period); break;
         }
-        string contextVal = StringFormat("%s, %s", _Symbol, tfStr);
-        SetRowText(1, "Symbol/TF:", contextVal, m_style.colorDashboardValue);
 
-        // Row 2: Trend
+        // Trend
         ETrend trend = structureEngine.GetState().trend;
         string trendVal = "Unknown";
         color  trendCol = clrLightGray;
@@ -320,9 +876,8 @@ public:
             case TREND_TRANSITION: trendVal = "Transition"; trendCol = clrGold; break;
             default:               break;
         }
-        SetRowText(2, "Trend:", trendVal, trendCol);
 
-        // Row 3: Phase
+        // Phase
         EMarketPhase phase = structureEngine.GetState().phase;
         string phaseVal = "Unknown";
         color  phaseCol = clrLightGray;
@@ -334,9 +889,8 @@ public:
             case PHASE_RANGING:    phaseVal = "Ranging"; phaseCol = clrLightGray; break;
             default:               break;
         }
-        SetRowText(3, "Phase:", phaseVal, phaseCol);
 
-        // Row 4: Structure Type
+        // Structure Type
         EStructureType structType = structureEngine.GetState().structureType;
         string structVal = "None";
         color  structCol = clrLightGray;
@@ -350,9 +904,8 @@ public:
             case STRUCTURE_EQUAL_LOW:  structVal = "Equal Low"; structCol = clrGold; break;
             default:                   break;
         }
-        SetRowText(4, "Structure:", structVal, structCol);
 
-        // Row 5: Last BOS
+        // Last BOS
         SStructureBreak latestBOS = breakDetector.GetLatestBOS();
         string bosVal = "None";
         color  bosCol = clrLightGray;
@@ -362,9 +915,8 @@ public:
             bosVal = StringFormat("%s @ %s", (isBull ? "Bullish" : "Bearish"), DoubleToString(latestBOS.price, _Digits));
             bosCol = isBull ? clrLime : clrRed;
         }
-        SetRowText(5, "Last BOS:", bosVal, bosCol);
 
-        // Row 6: Last CHoCH
+        // Last CHoCH
         SStructureBreak latestCHoCH = breakDetector.GetLatestCHOCH();
         string chochVal = "None";
         color  chochCol = clrLightGray;
@@ -374,11 +926,19 @@ public:
             chochVal = StringFormat("%s @ %s", (isBull ? "Bullish" : "Bearish"), DoubleToString(latestCHoCH.price, _Digits));
             chochCol = isBull ? clrLime : clrRed;
         }
-        SetRowText(6, "Last CHoCH:", chochVal, chochCol);
 
-        // Row 7: Liquidity Bias
+        // Active DOL
         SDolDefinition dol = objectiveEngine.GetActiveDol();
         bool isDolActive = (dol.active && dol.score >= 60.0 && dol.price != DBL_MAX);
+        string dolVal = "None";
+        color  dolCol = clrLightGray;
+        if (isDolActive)
+        {
+            dolVal = StringFormat("%s (%s)", DoubleToString(dol.price, _Digits), GetDolTypeString(dol.type));
+            dolCol = m_style.colorDOL;
+        }
+
+        // Liquidity Bias (Inferred from active DOL)
         string biasVal = "Balanced";
         color  biasCol = clrOrange;
         if (isDolActive)
@@ -394,19 +954,8 @@ public:
                 biasCol = clrRed;
             }
         }
-        SetRowText(7, "Liq Bias:", biasVal, biasCol);
 
-        // Row 8: Active DOL
-        string dolVal = "None";
-        color  dolCol = clrLightGray;
-        if (isDolActive)
-        {
-            dolVal = StringFormat("%s (%s)", DoubleToString(dol.price, _Digits), GetDolTypeString(dol.type));
-            dolCol = m_style.colorDOL;
-        }
-        SetRowText(8, "Active DOL:", dolVal, dolCol);
-
-        // Row 9: Active POI (Closest active POI)
+        // Active POI (Closest active POI)
         SPoIDefinition bullishPoi, bearishPoi;
         bool hasBullPoi = poiEngine.GetNearestBullishPOI(currentPrice, bullishPoi);
         bool hasBearPoi = poiEngine.GetNearestBearishPOI(currentPrice, bearishPoi);
@@ -448,9 +997,8 @@ public:
                                   DoubleToString(closestPoi.upperPrice, _Digits));
             poiCol = isBull ? clrLime : clrRed;
         }
-        SetRowText(9, "Active POI:", poiVal, poiCol);
 
-        // Row 10: Dealing Range Zone (DR Zone)
+        // DR Zone
         string zoneVal = "None";
         color  zoneCol = clrLightGray;
         double eq = poiEngine.GetEquilibrium(swingDetector);
@@ -465,29 +1013,23 @@ public:
                 default:               break;
             }
         }
-        SetRowText(10, "DR Zone:", zoneVal, zoneCol);
 
-        // Row 11: Active Sessions
+        // Session
         bool isTokyo  = CMNSUtils::IsInSession(gmtTime, 0, 8);
         bool isLondon = CMNSUtils::IsInSession(gmtTime, 8, 16);
         bool isNY     = CMNSUtils::IsInSession(gmtTime, 13, 21);
 
         string sessionVal = "";
-        if (isTokyo)  sessionVal += (StringLen(sessionVal) > 0 ? " / " : "") + "Tokyo";
-        if (isLondon) sessionVal += (StringLen(sessionVal) > 0 ? " / " : "") + "London";
-        if (isNY)     sessionVal += (StringLen(sessionVal) > 0 ? " / " : "") + "NY";
+        if (isTokyo)  sessionVal += (StringLen(sessionVal) > 0 ? "/" : "") + "Tokyo";
+        if (isLondon) sessionVal += (StringLen(sessionVal) > 0 ? "/" : "") + "London";
+        if (isNY)     sessionVal += (StringLen(sessionVal) > 0 ? "/" : "") + "NY";
 
         if (StringLen(sessionVal) == 0)
         {
             sessionVal = "Closed";
-            SetRowText(11, "Session:", sessionVal, clrLightGray);
-        }
-        else
-        {
-            SetRowText(11, "Session:", sessionVal, m_style.colorDashboardValue);
         }
 
-        // Row 12: Confirmation State
+        // Confirmation State
         EConfirmationState confState = confirmationEngine.GetConfirmationState();
         string confVal = "None";
         color  confCol = clrLightGray;
@@ -511,9 +1053,8 @@ public:
             default:
                 break;
         }
-        SetRowText(12, "Confirmation:", confVal, confCol);
 
-        // Row 13: Entry Signal
+        // Entry Signal
         EEntryState entState = entryEngine.GetActiveSignalState();
         string entVal = "None";
         color  entCol = clrLightGray;
@@ -545,7 +1086,37 @@ public:
             default:
                 break;
         }
-        SetRowText(13, "Entry:", entVal, entCol);
+
+        // ------------------------------------------
+        // Render Execution
+        // ------------------------------------------
+        if (m_isCollapsed)
+        {
+            // Collapsed HUD title updates showing desaturated state
+            string breakState = latestBOS.isConfirmed ? "BOS" : (latestCHoCH.isConfirmed ? "CHoCH" : "None");
+            string hudText = StringFormat("MNS | %s | %s | %s | %s", tfStr, trendVal, breakState, sessionVal);
+            ObjectSetString(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_TEXT, hudText);
+        }
+        else
+        {
+            // Standard Title
+            ObjectSetString(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_TEXT, "MNS ENGINE v1.0");
+
+            // Update row value labels
+            UpdateRowText("SYMBOL", StringFormat("%s, %s", _Symbol, tfStr), m_style.colorDashboardValue);
+            UpdateRowText("TREND", trendVal, trendCol);
+            UpdateRowText("PHASE", phaseVal, phaseCol);
+            UpdateRowText("STRUCTURE", structVal, structCol);
+            UpdateRowText("BOS", bosVal, bosCol);
+            UpdateRowText("CHOCH", chochVal, chochCol);
+            UpdateRowText("BIAS", biasVal, biasCol);
+            UpdateRowText("DOL", dolVal, dolCol);
+            UpdateRowText("POI", poiVal, poiCol);
+            UpdateRowText("ZONE", zoneVal, zoneCol);
+            UpdateRowText("SESSION", sessionVal, m_style.colorDashboardValue);
+            UpdateRowText("CONFIRMATION", confVal, confCol);
+            UpdateRowText("ENTRY", entVal, entCol);
+        }
     }
 };
 
