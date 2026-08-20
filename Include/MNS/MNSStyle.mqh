@@ -46,6 +46,16 @@ struct SIndicatorStyle {
     ENUM_LINE_STYLE styleBOS;   ///< Line style for BOS (STYLE_DASH)
     ENUM_LINE_STYLE styleCHoCH; ///< Line style for CHoCH (STYLE_DOT)
 
+    //--- Liquidity Pool Styling
+    color colorBSL;               ///< Color for BSL active line (DodgerBlue)
+    color colorSSL;               ///< Color for SSL active line (Tomato)
+    color colorEQH;               ///< Color for EQH active line (LightSkyBlue)
+    color colorEQL;               ///< Color for EQL active line (LightCoral)
+    color colorSweptPool;         ///< Color for Swept pools (Gray)
+    int widthLiqLine;             ///< Line width for BSL/SSL/EQH/EQL (default 1)
+    ENUM_LINE_STYLE styleLiqActive; ///< Line style for active BSL/SSL pools (STYLE_DASH)
+    ENUM_LINE_STYLE styleLiqSwept;  ///< Line style for swept pools (STYLE_DOT)
+
     /// @brief Resets the style structure to safe default premium theme values.
     void Reset() {
         // Default premium theme colors (matching UI/UX spec: Lime/Red/Orange/Gray)
@@ -76,6 +86,16 @@ struct SIndicatorStyle {
         // Line styles
         styleBOS = STYLE_DASH;
         styleCHoCH = STYLE_DOT;
+
+        // Liquidity default styles
+        colorBSL = clrDodgerBlue;
+        colorSSL = clrTomato;
+        colorEQH = clrLightSkyBlue;
+        colorEQL = clrLightCoral;
+        colorSweptPool = clrSlateGray;
+        widthLiqLine = 1;
+        styleLiqActive = STYLE_DASH;
+        styleLiqSwept = STYLE_DOT;
     }
 };
 

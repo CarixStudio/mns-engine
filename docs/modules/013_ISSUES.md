@@ -17,11 +17,10 @@ Each issue is assigned a unique identifier (`M13-ISSUE-001`, `M13-ISSUE-002`, et
 
 ## 2. Active Module 013 Issues
 
-**Stage 1 — COMPLETE** ✅  
-`MNS_Indicator.mq5` compiled: 0 errors, 0 warnings.  
-`MNS_TestHarness`: 320/320 PASSED.  
-`MNS_Indicator` attached to GBPUSD H1: all 11 engines initialized and logged correctly.  
-Stage 1 exit criteria fully satisfied. Proceeding to Stage 2.
+**Stage 1, 2 & 3 — COMPLETE** ✅  
+- Stage 1: `MNS_Indicator.mq5` shell compiled and verified.
+- Stage 2: Swing and Structure renderers completed and verified.
+- Stage 3: Liquidity Pool renderers completed and verified (0 errors, 0 warnings). Proceeding to Stage 4.
 
 The following issues are open and will affect Stage 2 and later visual stages:
 

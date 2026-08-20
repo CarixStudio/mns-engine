@@ -206,14 +206,12 @@ Indicator Integration (CIndicatorIntegration)
 
 First time the engine outputs are visible on a chart. Consolidates all visualization, chart rendering, Object Manager, dashboard layout, and user-facing settings UI (built on top of INF-004 Configuration System).
 
-### Stage Progress
-
 | Stage | Description | Status |
 |---|---|---|
 | Stage 0 | Architecture & Dependency Audit | ✅ Complete |
 | Stage 1 | Indicator Shell & Lifecycle Coordinator | ✅ Complete — 0 errors, 0 warnings. All 11 engines initialized on GBPUSD H1. |
-| **Stage 2** | **Swing Point & Structure Renderers** | ✅ **Complete** — Swing arrows and BOS/CHoCH lines rendering live on chart. 0 errors, 0 warnings. |
-| Stage 3 | Liquidity Pool Renderers (BSL/SSL/EQH/EQL) | ⬜ Pending |
+| Stage 2 | Swing Point & Structure Renderers | ✅ Complete — Swing arrows and BOS/CHoCH lines rendering live on chart. 0 errors, 0 warnings. |
+| **Stage 3** | **Liquidity Pool Renderers (BSL/SSL/EQH/EQL)** | ✅ **Complete** — Active BSL/SSL and EQH/EQL levels rendering on chart with capping and clean state transitions. |
 | Stage 4 | Advanced Zone Renderers (OB/FVG/Delivery/DOL) | ⬜ Pending |
 | Stage 5 | Dashboard & Info Panel | ⬜ Pending |
 | Stage 6 | Configuration Binding (INF-004 integration) | ⬜ Pending |
@@ -222,11 +220,11 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 | Stage 9 | Integration Testing | ⬜ Pending |
 | Stage 10 | Production Build & Release | ⬜ Pending |
 
-### Stage 2 Deliverables
-- `Include/MNS/MNSStyle.mqh` — Centralized visual style tokens (`SIndicatorStyle`)
-- `Include/MNS/Renderers/CSwingRenderer.mqh` — External + internal swing arrow rendering
-- `Include/MNS/Renderers/CStructureRenderer.mqh` — BOS / iBOS / CHoCH line + label rendering
-- `Indicators/MNS_Indicator.mq5` — Updated to call renderers in `OnCalculate()`
+### Stage 3 Deliverables
+- `Include/MNS/MNSStyle.mqh` — Centralized visual style tokens (updated with liquidity styles)
+- `Include/MNS/Renderers/CLiquidityRenderer.mqh` — Liquidity pool renderer class (BSL/SSL/EQH/EQL)
+- `Indicators/MNS_Indicator.mq5` — Coordinator updated to integrate liquidity rendering
+- `docs/modules/013_STAGE_03_DESIGN.md` — Stage 3 detailed design specifications
 
 
 
