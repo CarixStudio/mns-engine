@@ -333,39 +333,43 @@ void CObjectiveEngine::GatherCandidates(const CSwingDetector& swingDetector,
         }
     }
 
-    // 4. Scan Session High/Low (London hours 8-16, NY hours 13-21)
+    // 4. Scan Session High/Low — today's London (8-16 GMT) and NY (13-21 GMT) only
+    //    We restrict to the current calendar day to avoid stale multi-day session
+    //    extremes influencing the active DOL target.
     if (ratesTotal > 5) {
         double lonHigh = -DBL_MAX, lonLow = DBL_MAX;
         double nyHigh = -DBL_MAX, nyLow = DBL_MAX;
 
-        // Scan last 48 bars
-        int scanDepth = MathMin(ratesTotal - 1, 48);
+        // Establish today's reference date from bar[1] (last closed bar)
+        MqlDateTime refDt;
+        TimeToStruct(time[1], refDt);
+
+        // Scan backwards — cap at 300 bars for safety on M1 charts.
+        // Break as soon as we step into a prior day (arrays are timeseries).
+        int scanDepth = MathMin(ratesTotal - 1, 300);
         for (int j = 1; j <= scanDepth; j++) {
             MqlDateTime dt;
             TimeToStruct(time[j], dt);
-            if (dt.hour >= 8 && dt.hour < 16) // London
+
+            // Stop as soon as the bar belongs to a prior calendar day
+            if (dt.day_of_year != refDt.day_of_year || dt.year != refDt.year)
+                break;
+
+            if (dt.hour >= 8 && dt.hour < 16) // London session
             {
-                if (high[j] > lonHigh)
-                    lonHigh = high[j];
-                if (low[j] < lonLow)
-                    lonLow = low[j];
+                if (high[j] > lonHigh) lonHigh = high[j];
+                if (low[j] < lonLow)  lonLow  = low[j];
             }
-            if (dt.hour >= 13 && dt.hour < 21) // NY
+            if (dt.hour >= 13 && dt.hour < 21) // NY session
             {
-                if (high[j] > nyHigh)
-                    nyHigh = high[j];
-                if (low[j] < nyLow)
-                    nyLow = low[j];
+                if (high[j] > nyHigh) nyHigh = high[j];
+                if (low[j] < nyLow)   nyLow  = low[j];
             }
         }
-        if (lonHigh != -DBL_MAX)
-            AddCandidate(lonHigh, DOL_SESSION_HL);
-        if (lonLow != DBL_MAX)
-            AddCandidate(lonLow, DOL_SESSION_HL);
-        if (nyHigh != -DBL_MAX)
-            AddCandidate(nyHigh, DOL_SESSION_HL);
-        if (nyLow != DBL_MAX)
-            AddCandidate(nyLow, DOL_SESSION_HL);
+        if (lonHigh != -DBL_MAX) AddCandidate(lonHigh, DOL_SESSION_HL);
+        if (lonLow  !=  DBL_MAX) AddCandidate(lonLow,  DOL_SESSION_HL);
+        if (nyHigh  != -DBL_MAX) AddCandidate(nyHigh,  DOL_SESSION_HL);
+        if (nyLow   !=  DBL_MAX) AddCandidate(nyLow,   DOL_SESSION_HL);
     }
 
     // 5. Gather POI / FVG / OB midpoints from CPOIEngine

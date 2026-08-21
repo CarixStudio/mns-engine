@@ -521,12 +521,21 @@ double CConfirmationEngine::CalculateConfidence(const CStructureEngine& structur
         }
     }
 
-    // 3. Session Alignment (+10 pts)
+    // 3. Session Alignment (tiered: up to +10 pts)
+    //    London/NY overlap (13-16 GMT) = highest-quality liquidity window: +10
+    //    London-only (08-13 GMT) or NY-only (16-21 GMT)                   : +7
+    //    Tokyo (00-08 GMT) — thinner liquidity                            : +4
+    //    Off-hours (21-00 GMT)                                            : +0
     MqlDateTime dt;
     TimeToStruct(time[1], dt);
-    if ((dt.hour >= 0 && dt.hour < 8) || (dt.hour >= 8 && dt.hour < 16) || (dt.hour >= 13 && dt.hour < 21)) {
-        score += 10.0;
+    if (dt.hour >= 13 && dt.hour < 16) {
+        score += 10.0; // London/NY overlap — peak institutional activity
+    } else if ((dt.hour >= 8 && dt.hour < 13) || (dt.hour >= 16 && dt.hour < 21)) {
+        score += 7.0;  // London-only or NY-only
+    } else if (dt.hour >= 0 && dt.hour < 8) {
+        score += 4.0;  // Tokyo session — reduced but still active
     }
+    // 21:00–00:00 GMT: off-hours, no session bonus
 
     // 4. Displacement Conviction (+10 pts)
     int breakBarIdx = -1;

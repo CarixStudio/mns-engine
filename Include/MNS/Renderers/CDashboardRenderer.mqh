@@ -417,18 +417,18 @@ public:
         CreateButton("MNS_DASH_BTN_RESTORE", "MNS", 40, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
 
         // 2. Main Background Panel
-        CreateRect("MNS_DASH_PANEL", m_style.colorDashboardBg, m_style.colorDashboardBorder, m_width, GetCurrentHeight());
+        CreateRect("MNS_DASH_PANEL", m_style.colorDashboardBg, m_style.colorDashboardBorder, m_width, this.GetCurrentHeight());
 
         // 3. Header Background Panel
-        CreateRect("MNS_DASH_HEADER", C'30, 30, 30', m_style.colorDashboardBorder, m_width, 22);
+        CreateRect("MNS_DASH_HEADER", C'36, 36, 36', m_style.colorDashboardBorder, m_width, 22);
 
         // 4. Header Title
-        CreateLabel("MNS_DASH_TITLE", "MNS ENGINE v1.0", m_style.colorDashboardHeader, m_style.fontNameDashboard, m_style.fontSizeDashboard + 1, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_TITLE", "⁞⁞ MNS ENGINE v1.0", m_style.colorDashboardHeader, m_style.fontNameDashboard, m_style.fontSizeDashboard + 1, ANCHOR_LEFT_UPPER);
 
-        // 5. Header Control Buttons
-        CreateButton("MNS_DASH_BTN_LOCK", m_isLocked ? "🔒" : "🔓", 16, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
-        CreateButton("MNS_DASH_BTN_COLLAPSE", m_isCollapsed ? "＋" : "－", 16, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
-        CreateButton("MNS_DASH_BTN_HIDE", "×", 16, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
+        // 5. Header Control Buttons (Explicit text buttons instead of emojis)
+        CreateButton("MNS_DASH_BTN_LOCK", m_isLocked ? "UNLOCK" : "LOCK", 50, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
+        CreateButton("MNS_DASH_BTN_COLLAPSE", m_isCollapsed ? "FULL" : "HUD", 45, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
+        CreateButton("MNS_DASH_BTN_HIDE", "HIDE", 35, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
 
         // 6. Detail rows (labels)
         CreateLabel("MNS_DASH_LBL_SYMBOL", "Symbol/TF:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
@@ -469,11 +469,30 @@ public:
     {
         if (!m_isInitialized) return;
 
+        // Ensure offsets are within valid chart boundaries.
+        // During indicator initialization inside OnInit(), ChartGetInteger(0, CHART_WIDTH_IN_PIXELS)
+        // often returns 0, causing default offset calculations to go negative (off-screen).
+        // This dynamic clamp corrects the offsets as soon as a valid chart size is available.
+        int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+        int chartHeight = (int)ChartGetInteger(0, CHART_HEIGHT_IN_PIXELS);
+        int panelHeight = this.GetCurrentHeight();
+
+        if (chartWidth > 0 && chartHeight > 0)
+        {
+            if (m_xOffset < 0 || m_xOffset > chartWidth - m_width)
+            {
+                m_xOffset = MathMax(0, chartWidth - m_width - 20);
+            }
+            if (m_yOffset < 0 || m_yOffset > chartHeight - panelHeight)
+            {
+                m_yOffset = MathMax(0, 20);
+            }
+        }
+
         // If hidden, restore button sits at top-right by default
         if (!m_isVisible)
         {
             string restoreBtnName = GetObjName("MNS_DASH_BTN_RESTORE");
-            int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
             ObjectSetInteger(0, restoreBtnName, OBJPROP_XDISTANCE, chartWidth - 50);
             ObjectSetInteger(0, restoreBtnName, OBJPROP_YDISTANCE, 20);
             return;
@@ -489,14 +508,14 @@ public:
         ObjectSetInteger(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
         ObjectSetInteger(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_YDISTANCE, m_yOffset + 4);
 
-        // Controls
-        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_XDISTANCE, m_xOffset + m_width - 56);
+        // Controls (Realignment of larger text buttons in the header)
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_XDISTANCE, m_xOffset + m_width - 136);
         ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_YDISTANCE, m_yOffset + 2);
 
-        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_XDISTANCE, m_xOffset + m_width - 38);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_XDISTANCE, m_xOffset + m_width - 84);
         ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_YDISTANCE, m_yOffset + 2);
 
-        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_HIDE"), OBJPROP_XDISTANCE, m_xOffset + m_width - 20);
+        ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_HIDE"), OBJPROP_XDISTANCE, m_xOffset + m_width - 37);
         ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_HIDE"), OBJPROP_YDISTANCE, m_yOffset + 2);
 
         // Detail rows (if expanded)
@@ -558,7 +577,7 @@ public:
 
         // Update panel size
         string panelName = GetObjName("MNS_DASH_PANEL");
-        ObjectSetInteger(0, panelName, OBJPROP_YSIZE, GetCurrentHeight());
+        ObjectSetInteger(0, panelName, OBJPROP_YSIZE, this.GetCurrentHeight());
 
         // Header and core layout visible
         SetObjectVisibility("MNS_DASH_PANEL", true);
@@ -569,8 +588,8 @@ public:
         SetObjectVisibility("MNS_DASH_BTN_HIDE", true);
 
         // Update button texts
-        ObjectSetString(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_TEXT, m_isLocked ? "🔒" : "🔓");
-        ObjectSetString(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_TEXT, m_isCollapsed ? "＋" : "－");
+        ObjectSetString(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_TEXT, m_isLocked ? "UNLOCK" : "LOCK");
+        ObjectSetString(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_TEXT, m_isCollapsed ? "FULL" : "HUD");
 
         if (m_isCollapsed)
         {
@@ -692,7 +711,7 @@ public:
             {
                 m_isLocked = !m_isLocked;
                 GlobalVariableSet(prefix + "LOCKED", m_isLocked ? 1.0 : 0.0);
-                ObjectSetString(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_TEXT, m_isLocked ? "🔒" : "🔓");
+                ObjectSetString(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_TEXT, m_isLocked ? "UNLOCK" : "LOCK");
                 ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_LOCK"), OBJPROP_STATE, false);
                 ChartRedraw(0);
             }
@@ -700,7 +719,7 @@ public:
             {
                 m_isCollapsed = !m_isCollapsed;
                 GlobalVariableSet(prefix + "COLLAPSED", m_isCollapsed ? 1.0 : 0.0);
-                ObjectSetString(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_TEXT, m_isCollapsed ? "＋" : "－");
+                ObjectSetString(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_TEXT, m_isCollapsed ? "FULL" : "HUD");
                 ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_COLLAPSE"), OBJPROP_STATE, false);
                 RedrawLayout();
                 ChartRedraw(0);
@@ -757,7 +776,7 @@ public:
 
                     int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
                     int chartHeight = (int)ChartGetInteger(0, CHART_HEIGHT_IN_PIXELS);
-                    int height = GetCurrentHeight();
+                    int height = this.GetCurrentHeight();
 
                     newX = MathMax(0, MathMin(newX, chartWidth - m_width));
                     newY = MathMax(0, MathMin(newY, chartHeight - height));
@@ -787,7 +806,7 @@ public:
         {
             int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
             int chartHeight = (int)ChartGetInteger(0, CHART_HEIGHT_IN_PIXELS);
-            int height = GetCurrentHeight();
+            int height = this.GetCurrentHeight();
 
             bool adjusted = false;
             if (m_xOffset > chartWidth - m_width)
@@ -838,8 +857,34 @@ public:
             return;
         }
 
+        // Dynamically correct coordinates if they were initialized off-screen
+        // (common when OnInit runs and chart dimensions are reported as 0)
+        int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+        int chartHeight = (int)ChartGetInteger(0, CHART_HEIGHT_IN_PIXELS);
+        int panelHeight = this.GetCurrentHeight();
+        bool positionCorrected = false;
+
+        if (chartWidth > 0 && chartHeight > 0)
+        {
+            if (m_xOffset < 0 || m_xOffset > chartWidth - m_width)
+            {
+                m_xOffset = MathMax(0, chartWidth - m_width - 20);
+                positionCorrected = true;
+            }
+            if (m_yOffset < 0 || m_yOffset > chartHeight - panelHeight)
+            {
+                m_yOffset = MathMax(0, 20);
+                positionCorrected = true;
+            }
+        }
+
         // Make sure all layout objects exist
         EnsureObjectsExist();
+
+        if (positionCorrected)
+        {
+            UpdateObjectPositions();
+        }
 
         // Current price context for calculations
         double currentPrice = (ratesTotal > 1) ? close[1] : close[0];
@@ -1093,14 +1138,15 @@ public:
         if (m_isCollapsed)
         {
             // Collapsed HUD title updates showing desaturated state
-            string breakState = latestBOS.isConfirmed ? "BOS" : (latestCHoCH.isConfirmed ? "CHoCH" : "None");
-            string hudText = StringFormat("MNS | %s | %s | %s | %s", tfStr, trendVal, breakState, sessionVal);
+            string breakState = latestBOS.isConfirmed ? "BOS" : (latestCHoCH.isConfirmed ? "CHoCH" : "NONE");
+            string hudText = StringFormat("⁞⁞ MNS | %s | %s | %s | %s", tfStr, trendVal, breakState, sessionVal);
+            StringToUpper(hudText);
             ObjectSetString(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_TEXT, hudText);
         }
         else
         {
             // Standard Title
-            ObjectSetString(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_TEXT, "MNS ENGINE v1.0");
+            ObjectSetString(0, GetObjName("MNS_DASH_TITLE"), OBJPROP_TEXT, "⁞⁞ MNS ENGINE v1.0");
 
             // Update row value labels
             UpdateRowText("SYMBOL", StringFormat("%s, %s", _Symbol, tfStr), m_style.colorDashboardValue);

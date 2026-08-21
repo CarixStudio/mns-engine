@@ -318,25 +318,31 @@ void CPOIEngine::DetectOBs(const CSwingDetector &swingDetector,
                     }
                 }
 
-                // Gather compact candle cluster preceding dispBar (max 3 bearish candles)
+                // Gather compact candle cluster preceding dispBar (up to 3 bearish candles).
+                // Doji / indecision candles (body/range < 15%) are skipped, not terminating.
+                // Scan up to 5 bars to allow for up to 2 doji skips within a 3-candle cluster.
                 int clusterStart = dispBar + 1;
                 int clusterSize = 0;
                 double lowestLow = DBL_MAX;
                 double highestOpen = 0.0;
 
-                for (int k = 0; k < 3; k++)
+                for (int k = 0; k < 5 && clusterSize < 3; k++)
                 {
                     int idx = clusterStart + k;
                     if (idx >= ratesTotal) break;
-                    if (close[idx] < open[idx]) // Bearish candle
+                    double cBody  = MathAbs(close[idx] - open[idx]);
+                    double cRange = high[idx] - low[idx];
+                    bool isDoji   = (cRange > 0.0 && (cBody / cRange) < 0.15) || cBody < 0.5 * _Point;
+                    if (isDoji) continue;             // indecision — skip without terminating
+                    if (close[idx] < open[idx])       // valid bearish OB candle
                     {
-                        if (low[idx] < lowestLow) lowestLow = low[idx];
-                        if (open[idx] > highestOpen) highestOpen = open[idx];
+                        if (low[idx]  < lowestLow)   lowestLow   = low[idx];
+                        if (open[idx] > highestOpen)  highestOpen = open[idx];
                         clusterSize++;
                     }
                     else
                     {
-                        break;
+                        break;  // genuine bullish candle — stop, OB cluster is before this
                     }
                 }
 
@@ -385,25 +391,31 @@ void CPOIEngine::DetectOBs(const CSwingDetector &swingDetector,
                     }
                 }
 
-                // Gather compact candle cluster preceding dispBar (max 3 bullish candles)
+                // Gather compact candle cluster preceding dispBar (up to 3 bullish candles).
+                // Doji / indecision candles (body/range < 15%) are skipped, not terminating.
+                // Scan up to 5 bars to allow for up to 2 doji skips within a 3-candle cluster.
                 int clusterStart = dispBar + 1;
                 int clusterSize = 0;
                 double highestHigh = 0.0;
                 double lowestOpen = DBL_MAX;
 
-                for (int k = 0; k < 3; k++)
+                for (int k = 0; k < 5 && clusterSize < 3; k++)
                 {
                     int idx = clusterStart + k;
                     if (idx >= ratesTotal) break;
-                    if (close[idx] > open[idx]) // Bullish candle
+                    double cBody  = MathAbs(close[idx] - open[idx]);
+                    double cRange = high[idx] - low[idx];
+                    bool isDoji   = (cRange > 0.0 && (cBody / cRange) < 0.15) || cBody < 0.5 * _Point;
+                    if (isDoji) continue;             // indecision — skip without terminating
+                    if (close[idx] > open[idx])       // valid bullish OB candle
                     {
-                        if (high[idx] > highestHigh) highestHigh = high[idx];
-                        if (open[idx] < lowestOpen) lowestOpen = open[idx];
+                        if (high[idx] > highestHigh)  highestHigh = high[idx];
+                        if (open[idx] < lowestOpen)   lowestOpen  = open[idx];
                         clusterSize++;
                     }
                     else
                     {
-                        break;
+                        break;  // genuine bearish candle — stop, OB cluster is before this
                     }
                 }
 

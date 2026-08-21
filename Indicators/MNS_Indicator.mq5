@@ -474,10 +474,6 @@ int OnCalculate(const int      rates_total,
                 const long     &volume[],
                 const int      &spread[])
 {
-    //--- Log entry for debugging attach/recalculation issues
-    Print(StringFormat("[DEBUG] [MNS_Indicator] OnCalculate: rates_total=%d, prev_calculated=%d, live_time=%s", 
-                       rates_total, prev_calculated, TimeToString(time[0], TIME_DATE|TIME_MINUTES|TIME_SECONDS)));
-
     //--- Guard: engines must be fully initialized before any processing.
     if (!g_isReady)
     {
@@ -500,6 +496,10 @@ int OnCalculate(const int      rates_total,
     ArraySetAsSeries(open,  true);
     ArraySetAsSeries(close, true);
     ArraySetAsSeries(time,  true);
+
+    //--- Log entry for debugging attach/recalculation issues (printed after setting time array series order)
+    Print(StringFormat("[DEBUG] [MNS_Indicator] OnCalculate: rates_total=%d, prev_calculated=%d, live_time=%s", 
+                       rates_total, prev_calculated, TimeToString(time[0], TIME_DATE|TIME_MINUTES|TIME_SECONDS)));
 
     //--- Detect whether this is a new bar or a tick within the same bar.
     //    MT5 convention: if prev_calculated == rates_total, no new bar has
@@ -542,10 +542,16 @@ int OnCalculate(const int      rates_total,
     //--- Determine prevCalculated to pass to engines.
     //    We restrict the history processed by the engines to prevent filling fixed-size buffers.
     int limitBars = MathMin(rates_total, InpMaxHistoryBars);
-    
-    //    On every update of the limited window, we pass 0 as prev_calculated to
-    //    force engines to cleanly rebuild their states for the active window.
-    int prevCalc = 0;
+
+    //    Incremental prevCalc: on normal bar-by-bar operation, pass prev_calculated so
+    //    engines that support incremental processing skip already-confirmed bars.
+    //    Force a full rescan (prevCalc = 0) when:
+    //      a) This is the very first calculation (prev_calculated == 0), or
+    //      b) More than 1 new bar arrived since the last call (gap / chart reload).
+    //    This guarantees correctness is never sacrificed for the performance gain.
+    int prevCalc = ((prev_calculated > 0) && ((rates_total - prev_calculated) <= 1))
+                   ? prev_calculated
+                   : 0;
 
     //+------------------------------------------------------------------+
     //| Engine Update Sequence — strict DAG order                        |
