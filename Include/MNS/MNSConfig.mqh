@@ -46,6 +46,23 @@ struct SEngineConfig
     int    atrPeriod;
     bool   logEnable;
     int    logLevel;
+
+    //--- Stage 6 Analytical Additions (M13-ISSUE-002, M13-ISSUE-004)
+    int    gmtOffset;                 // GMT Offset in hours
+    double maxSpreadPoints;           // Max spread filter
+    double desiredRiskPercent;        // Desired risk percent per trade
+
+    //--- Stage 6 Visual Capping Additions
+    int    maxRenderedSwings;         // Max swing objects to render
+    int    maxRenderedBreaks;         // Max BOS/CHoCH lines to render
+    int    maxRenderedPools;          // Max liquidity pool lines to render
+    int    maxRenderedPOIs;           // Max POI rectangles to render
+
+    //--- Stage 6 Dashboard Layout Additions
+    bool   showDashboard;             // Enable dashboard rendering
+    int    dashboardX;                // X-coordinate dashboard pixel offset
+    int    dashboardY;                // Y-coordinate dashboard pixel offset
+    int    dashboardWidth;            // Panel width in pixels
 };
 
 //+------------------------------------------------------------------+
@@ -71,6 +88,19 @@ public:
         s_config.atrPeriod                     = 14;
         s_config.logEnable                     = true;
         s_config.logLevel                      = 1; // MNS_LOG_INFO
+
+        //--- Stage 6 defaults
+        s_config.gmtOffset            = 0;
+        s_config.maxSpreadPoints      = 50.0;
+        s_config.desiredRiskPercent   = 1.0;
+        s_config.maxRenderedSwings    = 50;
+        s_config.maxRenderedBreaks    = 20;
+        s_config.maxRenderedPools     = 20;
+        s_config.maxRenderedPOIs      = 20;
+        s_config.showDashboard        = true;
+        s_config.dashboardX           = 20;
+        s_config.dashboardY           = 20;
+        s_config.dashboardWidth       = 250;
     }
 
     /// @brief Returns a copy of the active engine configuration.
@@ -193,6 +223,89 @@ public:
                 return false;
                 
             s_config.logLevel = val;
+            return true;
+        }
+        else if (name == "gmtOffset")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= -12 && val <= 12, "UpdateParameter: gmtOffset must be [-12..12]");
+            if (val < -12 || val > 12) return false;
+            s_config.gmtOffset = val;
+            return true;
+        }
+        else if (name == "maxSpreadPoints")
+        {
+            MNS_Assert(value >= 0.0 && value <= 500.0, "UpdateParameter: maxSpreadPoints must be [0.0..500.0]");
+            if (value < 0.0 || value > 500.0) return false;
+            s_config.maxSpreadPoints = value;
+            return true;
+        }
+        else if (name == "desiredRiskPercent")
+        {
+            MNS_Assert(value >= 0.0 && value <= 10.0, "UpdateParameter: desiredRiskPercent must be [0.0..10.0]");
+            if (value < 0.0 || value > 10.0) return false;
+            s_config.desiredRiskPercent = value;
+            return true;
+        }
+        else if (name == "maxRenderedSwings")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 10 && val <= 500, "UpdateParameter: maxRenderedSwings must be [10..500]");
+            if (val < 10 || val > 500) return false;
+            s_config.maxRenderedSwings = val;
+            return true;
+        }
+        else if (name == "maxRenderedBreaks")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 5 && val <= 200, "UpdateParameter: maxRenderedBreaks must be [5..200]");
+            if (val < 5 || val > 200) return false;
+            s_config.maxRenderedBreaks = val;
+            return true;
+        }
+        else if (name == "maxRenderedPools")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 5 && val <= 200, "UpdateParameter: maxRenderedPools must be [5..200]");
+            if (val < 5 || val > 200) return false;
+            s_config.maxRenderedPools = val;
+            return true;
+        }
+        else if (name == "maxRenderedPOIs")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 5 && val <= 200, "UpdateParameter: maxRenderedPOIs must be [5..200]");
+            if (val < 5 || val > 200) return false;
+            s_config.maxRenderedPOIs = val;
+            return true;
+        }
+        else if (name == "showDashboard")
+        {
+            s_config.showDashboard = (value != 0.0);
+            return true;
+        }
+        else if (name == "dashboardX")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 0 && val <= 2000, "UpdateParameter: dashboardX must be [0..2000]");
+            if (val < 0 || val > 2000) return false;
+            s_config.dashboardX = val;
+            return true;
+        }
+        else if (name == "dashboardY")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 0 && val <= 2000, "UpdateParameter: dashboardY must be [0..2000]");
+            if (val < 0 || val > 2000) return false;
+            s_config.dashboardY = val;
+            return true;
+        }
+        else if (name == "dashboardWidth")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 150 && val <= 500, "UpdateParameter: dashboardWidth must be [150..500]");
+            if (val < 150 || val > 500) return false;
+            s_config.dashboardWidth = val;
             return true;
         }
         

@@ -303,22 +303,23 @@ public:
     /// @brief Initializes the renderer with the style structure and layout inputs.
     bool Initialize(const SIndicatorStyle &style, bool showDashboard, int x, int y, int width)
     {
+        SEngineConfig cfg = CMNSConfig::GetActive();
         m_style = style;
-        m_showDashboard = showDashboard;
-        m_width = (width > 100) ? width : 250;
+        m_showDashboard = cfg.showDashboard;
+        m_width = (cfg.dashboardWidth > 100) ? cfg.dashboardWidth : 250;
         m_isInitialized = true;
         
         m_isLocked = false;
         m_isCollapsed = false;
-        m_isVisible = showDashboard;
+        m_isVisible = cfg.showDashboard;
         m_isDragging = false;
         m_dragDx = 0;
         m_dragDy = 0;
 
         // Set default offsets based on chart dimensions (anchored to top-right)
         int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
-        m_xOffset = chartWidth - m_width - x;
-        m_yOffset = y;
+        m_xOffset = chartWidth - m_width - cfg.dashboardX;
+        m_yOffset = cfg.dashboardY;
 
         // Load persisted states if they exist
         string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
@@ -666,9 +667,10 @@ public:
     /// @brief Restores the dashboard to the default top-right corner.
     void ResetPosition()
     {
+        SEngineConfig cfg = CMNSConfig::GetActive();
         int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
-        m_xOffset = chartWidth - m_width - 20;
-        m_yOffset = 20;
+        m_xOffset = chartWidth - m_width - cfg.dashboardX;
+        m_yOffset = cfg.dashboardY;
         m_isCollapsed = false;
         m_isLocked = false;
         m_isVisible = true;
@@ -850,6 +852,10 @@ public:
         if (!m_isInitialized)
             return;
 
+        SEngineConfig cfg = CMNSConfig::GetActive();
+        m_width = cfg.dashboardWidth;
+        m_showDashboard = cfg.showDashboard;
+
         // If hidden or not shown, ensure cleaned up and return
         if (!m_isVisible)
         {
@@ -868,12 +874,12 @@ public:
         {
             if (m_xOffset < 0 || m_xOffset > chartWidth - m_width)
             {
-                m_xOffset = MathMax(0, chartWidth - m_width - 20);
+                m_xOffset = MathMax(0, chartWidth - m_width - cfg.dashboardX);
                 positionCorrected = true;
             }
             if (m_yOffset < 0 || m_yOffset > chartHeight - panelHeight)
             {
-                m_yOffset = MathMax(0, 20);
+                m_yOffset = MathMax(0, cfg.dashboardY);
                 positionCorrected = true;
             }
         }

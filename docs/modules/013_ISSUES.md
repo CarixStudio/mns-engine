@@ -98,56 +98,32 @@ The following issues are open and will affect Stage 2 and later visual stages:
 
 ---
 
+## 5. Resolved Issues
+
 ### M13-ISSUE-002: Risk & Spread Configuration Inconsistency
 - **ID**: M13-ISSUE-002
 - **Global Tracking ID**: [MNS-ISSUE-002](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/docs/DEFERRED.md#mns-issue-002-unification-of-risk-sizing--spread-filters-in-configuration)
-- **Status**: DEFERRED
-- **Severity**: Medium
-- **Discovered In**: Stage 0 (Audit)
-- **Affected Stage**: Stage 5 (Dashboard) & Stage 6 (Configuration Binding)
-- **Source Documents**:
-  - [Include/MNS/CRiskEngine.mqh](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/CRiskEngine.mqh)
-  - [Include/MNS/MNSConfig.mqh](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/MNSConfig.mqh)
-  - [Include/MNS/CEntryEngine.mqh](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/CEntryEngine.mqh)
-  - [docs/infrastructure/specs/INF_004_Configuration.md](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/docs/infrastructure/specs/INF_004_Configuration.md)
-- **Problem**: 
-  - Risk parameters (`desiredRiskPercent`, `maxDailyDrawdownPercent`) are passed directly or hardcoded in `CRiskEngine`.
-  - Spread filter (`maxSpreadPoints`) is passed directly to `CEntryEngine::Initialize()`.
-  - None of these user settings are unified in `SEngineConfig` or `CMNSConfig.mqh`, preventing them from being loaded from INI profiles.
-- **Why It Matters**: The dashboard displays pre-trade lot sizing: `Entry: [Price] | Vol: [Lots] | RR: [Value]`. To calculate volume size via `CRiskEngine::SizePreTrade()`, the indicator must know the trader's desired risk percentage and maximum spread filters. Without configuration unification, these settings will drift between the EA and the indicator.
-- **Current Understanding**: Sizing rules (minimum 1.5R, trailing stops, partial closes) are strategy invariants and must remain hardcoded. User settings (risk percent, max spread) should be configurable.
-- **Required Decision**: Should we integrate risk percent and max spread into `SEngineConfig` and `CMNSConfig`, or manage them as standalone indicator inputs?
-- **Proposed Resolution**: Classify as DEFERRED for Stage 1. Manage them as standard indicator input settings (`input double InpDesiredRisk = 1.0;`, `input double InpMaxSpread = 50.0;`) to avoid modifying configuration headers in Stage 1. In Stage 6, add these parameters to `SEngineConfig` to unify the EA and indicator settings.
-- **Implementation Impact**: Requires adding parameters to `SEngineConfig` in `MNSConfig.mqh` during Stage 6.
-- **Dependencies**: Centralized configuration binding.
-- **Owner**: Technical Lead.
-- **Resolution Criteria**: Risk parameters unified in the configuration schema.
+- **Status**: ✅ RESOLVED
+- **Resolution**:
+  - `desiredRiskPercent` and `maxSpreadPoints` integrated into `SEngineConfig` structure and `CMNSConfig` class.
+  - Sizing and filter configurations are dynamically synchronized in `OnInit()` from MT5 indicator inputs or config files.
+  - Both `CEntryEngine` and `CRiskEngine` initialize using unified parameters retrieved from `CMNSConfig::GetActive()`.
+- **Resolved In**: Stage 6 — Configuration Binding
+- **Commit Reference**: Module013-Stage6
 
 ---
 
 ### M13-ISSUE-004: Session Parameter Centralization
 - **ID**: M13-ISSUE-004
 - **Global Tracking ID**: [MNS-ISSUE-004](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/docs/DEFERRED.md#mns-issue-004-session-parameter--gmt-offset-centralization)
-- **Status**: DEFERRED
-- **Severity**: Low
-- **Discovered In**: Stage 0 (Audit)
-- **Affected Stage**: Stage 5 (Dashboard) & Stage 6 (Configuration Binding)
-- **Source Documents**:
-  - [Include/MNS/CLiquidityEngine.mqh](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/CLiquidityEngine.mqh)
-  - [Include/MNS/MNSUtils.mqh](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/MNSUtils.mqh)
-- **Problem**: Session hourly boundaries (London: 8-16, NY: 13-21, Asia: 0-8 GMT) and GMT timezone offsets are hardcoded/duplicated across `CLiquidityEngine` and `CObjectiveEngine`. No central engine exposes the "active session" state for the dashboard.
-- **Why It Matters**: To render `Session: [LONDON / NEW YORK / ASIA / OVERLAP]` on the dashboard, the indicator controller must evaluate active sessions. Doing so statically without centralizing settings may lead to calculation drifts.
-- **Current Understanding**: GMT conversions are handled statically by `CMNSUtils`.
-- **Required Decision**: Should we centralize session definitions in `MNSConfig` and build a central session state manager, or should the dashboard evaluate them statically?
-- **Proposed Resolution**: Classify as DEFERRED. The dashboard will statically evaluate session overlaps on ticks using `CMNSUtils::IsInSession()`. In Stage 6, we will add the timezone offset and session hour ranges to `MNSConfig` to unify these parameters.
-- **Implementation Impact**: Simple static check on dashboard ticks.
-- **Dependencies**: Centralized configuration binding.
-- **Owner**: Technical Lead.
-- **Resolution Criteria**: Time parameters centralized in `MNSConfig`.
+- **Status**: ✅ RESOLVED
+- **Resolution**:
+  - `gmtOffset` added to `SEngineConfig` and `CMNSConfig` class.
+  - Active time evaluations and session shifts on the dashboard and inside `CLiquidityEngine` bind to `cfg.gmtOffset` dynamically.
+- **Resolved In**: Stage 6 — Configuration Binding
+- **Commit Reference**: Module013-Stage6
 
 ---
-
-## 5. Resolved Issues
 
 ### M13-ISSUE-003: Unresolved Terminology (CRT, IRL, ERL)
 - **ID**: M13-ISSUE-003

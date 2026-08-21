@@ -213,8 +213,8 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 | Stage 2 | Swing Point & Structure Renderers | ✅ Complete — Swing arrows and BOS/CHoCH lines rendering live on chart. 0 errors, 0 warnings. |
 | Stage 3 | Liquidity Pool Renderers (BSL/SSL/EQH/EQL) | ✅ Complete — Active BSL/SSL and EQH/EQL levels rendering on chart with capping and clean state transitions. |
 | **Stage 4** | **Advanced Zone Renderers (OB/FVG/Delivery/DOL)** | ✅ **Complete** — OB, Breaker, MB, FVG zones rendering as filled rectangles with lifecycle transitions; active delivery leg and DOL targets rendering cleanly. |
-| **Stage 5** | **Dashboard & Info Panel** | ✅ **Complete** — Stacked vertical info panel displaying active states from all 11 core engines in real time. |
-| Stage 6 | Configuration Binding (INF-004 integration) | ⬜ Pending |
+| Stage 5 | Dashboard & Info Panel | ✅ Complete — Stacked vertical info panel displaying active states from all 11 core engines in real time. |
+| Stage 6 | Configuration Binding (INF-004 integration) | ✅ Complete — Centralized dynamic loading from config profiles, bound to MT5 inputs, all 11 engines and renderers synced. |
 | Stage 7 | Session Renderers & Premium/Discount Zones | ⬜ Pending |
 | Stage 8 | Visual Performance Profiling | ⬜ Pending |
 | Stage 9 | Integration Testing | ⬜ Pending |
@@ -232,6 +232,12 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 - `Include/MNS/Renderers/CDashboardRenderer.mqh` — Visual status dashboard renderer
 - `Indicators/MNS_Indicator.mq5` — Updated coordinator to instantiate and call CDashboardRenderer
 - `docs/modules/013_STAGE_05_DESIGN.md` — Stage 5 detailed design specifications
+
+### Stage 6 Deliverables
+- `Include/MNS/MNSConfig.mqh` — Extended `SEngineConfig`, updated `SetDefaults()`, and validation bounds in `UpdateParameter()`
+- `Include/MNS/Renderers/CDashboardRenderer.mqh` — Bound layout positioning, visibility, and sizing metrics to config
+- `Indicators/MNS_Indicator.mq5` — Implemented sequential loading (`SetDefaults` -> `LoadFromFile` -> Sync inputs -> Retrieve cfg) in `OnInit()`, updated dashboard checking in `OnCalculate()`
+- `docs/modules/013_STAGE_06_DESIGN.md` — Stage 6 detailed design specifications
 
 
 
@@ -360,19 +366,31 @@ Status
 
 This dashboard is interactive because it's an Expert Advisor.
 
----
+# Phase 6 — EA Testing & Backtesting
 
-# Phase 6 — EA Testing
+This is the phase where we validate the strategy's historical profitability and risk tolerance before deploying to a live account.
 
-Backtest.
+### Step 6.1 — Historical Backtesting
+*   **When**: Immediately after completing Module 014 (EA Dashboard).
+*   **Platform**: MetaTrader 5 Strategy Tester.
+*   **Data Quality**: Every Tick based on real ticks (99.9% modeling quality).
+*   **Timeframes**: GBPUSD H1 and M5 charts.
+*   **Historical Range**: 3-year lookback (2023 - 2026) to test performance in different market conditions (trending, ranging, high-volatility news events).
+*   **Method**: 
+    1. Run the EA with the centralized `.ini` settings files.
+    2. Optimize parameters (e.g., ATR multipliers, POI scores, risk sizes) using MT5's genetic optimization algorithm.
 
-Forward test.
+### Step 6.2 — Backtesting Performance Metrics
+We will analyze the backtest results using the following criteria:
+*   **Net Profit & Profit Factor**: Profit factor must be > 1.5.
+*   **Max Drawdown**: Absolute drawdown must be kept below 5% (to comply with prop firm limits).
+*   **Recovery Factor**: Ability of the strategy to recover from drawdown periods.
+*   **Win Rate & Average R:R**: Verify that average winning trade is $\ge$ 1.5 times the average losing trade.
 
-Demo account.
-
-Then live account.
-
-Fix issues until stable.
+### Step 6.3 — Forward Testing & Demo Deployment
+*   **Forward Testing**: Run the EA in the Strategy Tester on out-of-sample data (unseen price periods) to verify it wasn't curve-fitted.
+*   **Demo Trading**: Attach the EA to a live Demo account (MetaQuotes-Demo) to trade in real-time forward conditions for 2–4 weeks.
+*   **Live Deployment**: Move to a live account only after demo results match the backtesting model.
 
 ---
 

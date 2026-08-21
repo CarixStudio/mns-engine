@@ -95,6 +95,9 @@
 //| Indicator Input Parameters                                        |
 //+------------------------------------------------------------------+
 
+/// @brief Settings profile file path relative to MQL5\Files sandbox folder (optional).
+input string InpConfigFile        = "";
+
 /// @brief GMT offset in whole hours for session boundary calculations.
 /// Used by CLiquidityEngine to detect daily/weekly/session transitions.
 /// Default 0 = UTC/GMT broker time.
@@ -226,8 +229,36 @@ int OnInit()
         StringFormat("Initializing MNS Indicator v1.0 on %s %s",
                      _Symbol, EnumToString((ENUM_TIMEFRAMES)_Period)));
 
-    //--- 2. Load configuration defaults
+    //--- 2. Load configuration defaults & profile
     CMNSConfig::SetDefaults();
+
+    // Load settings from config file if specified
+    if (InpConfigFile != "")
+    {
+        if (CMNSConfig::LoadFromFile(InpConfigFile))
+        {
+            MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, StringFormat("Settings profile loaded from file: %s", InpConfigFile));
+        }
+        else
+        {
+            MNS_Log(MNS_LOG_WARN, MNS_INDICATOR_SOURCE, StringFormat("Failed to load settings profile from %s. Using default parameters.", InpConfigFile));
+        }
+    }
+
+    // Sync MT5 Input parameters back to CMNSConfig
+    CMNSConfig::UpdateParameter("gmtOffset", (double)InpGmtOffset);
+    CMNSConfig::UpdateParameter("maxSpreadPoints", InpMaxSpreadPoints);
+    CMNSConfig::UpdateParameter("desiredRiskPercent", InpDefaultRisk);
+    CMNSConfig::UpdateParameter("maxRenderedSwings", (double)InpMaxRenderedSwings);
+    CMNSConfig::UpdateParameter("maxRenderedBreaks", (double)InpMaxRenderedBreaks);
+    CMNSConfig::UpdateParameter("maxRenderedPools", (double)InpMaxRenderedPools);
+    CMNSConfig::UpdateParameter("maxRenderedPOIs", (double)InpMaxRenderedPOIs);
+    CMNSConfig::UpdateParameter("showDashboard", InpShowDashboard ? 1.0 : 0.0);
+    CMNSConfig::UpdateParameter("dashboardX", (double)InpDashboardX);
+    CMNSConfig::UpdateParameter("dashboardY", (double)InpDashboardY);
+    CMNSConfig::UpdateParameter("dashboardWidth", (double)InpDashboardWidth);
+
+    // Fetch active unified configuration context
     SEngineConfig cfg = CMNSConfig::GetActive();
 
     //--- 3. Compute runtime-derived minimum break distance
@@ -286,7 +317,7 @@ int OnInit()
     MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "CDeliveryStructureEngine initialized.");
 
     // --- Engine 6: CLiquidityEngine (depends on: CSwingDetector, CDeliveryStructureEngine)
-    if (!g_liquidity.Initialize(InpGmtOffset))
+    if (!g_liquidity.Initialize(cfg.gmtOffset))
     {
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE,
             "CLiquidityEngine::Initialize() FAILED.");
@@ -326,7 +357,7 @@ int OnInit()
     // --- Engine 10: CEntryEngine
     //                (depends on: CConfirmationEngine, CObjectiveEngine, CStructureEngine,
     //                             CDeliveryStructureEngine, CPOIEngine)
-    if (!g_entry.Initialize(InpMaxSpreadPoints))
+    if (!g_entry.Initialize(cfg.maxSpreadPoints))
     {
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE,
             "CEntryEngine::Initialize() FAILED.");
@@ -335,7 +366,7 @@ int OnInit()
     MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "CEntryEngine initialized.");
 
     // --- Engine 11: CRiskEngine (no bar-by-bar Update(); on-demand calls only)
-    if (!g_risk.Initialize(InpDefaultRisk, 0.25, 2.0, 5.0))
+    if (!g_risk.Initialize(cfg.desiredRiskPercent, 0.25, 2.0, 5.0))
     {
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE,
             "CRiskEngine::Initialize() FAILED.");
@@ -346,22 +377,22 @@ int OnInit()
     // --- Visual Renderers Initialization (Stage 2)
     SIndicatorStyle style;
     style.Reset(); // Load default premium visual tokens
-    if (!g_swingRenderer.Initialize(style, InpMaxRenderedSwings))
+    if (!g_swingRenderer.Initialize(style, cfg.maxRenderedSwings))
     {
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CSwingRenderer::Initialize() FAILED.");
         return INIT_FAILED;
     }
-    if (!g_structureRenderer.Initialize(style, InpMaxRenderedBreaks))
+    if (!g_structureRenderer.Initialize(style, cfg.maxRenderedBreaks))
     {
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CStructureRenderer::Initialize() FAILED.");
         return INIT_FAILED;
     }
-    if (!g_liquidityRenderer.Initialize(style, InpMaxRenderedPools))
+    if (!g_liquidityRenderer.Initialize(style, cfg.maxRenderedPools))
     {
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CLiquidityRenderer::Initialize() FAILED.");
         return INIT_FAILED;
     }
-    if (!g_poiRenderer.Initialize(style, InpMaxRenderedPOIs))
+    if (!g_poiRenderer.Initialize(style, cfg.maxRenderedPOIs))
     {
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CPOIRenderer::Initialize() FAILED.");
         return INIT_FAILED;
@@ -371,7 +402,7 @@ int OnInit()
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CDeliveryRenderer::Initialize() FAILED.");
         return INIT_FAILED;
     }
-    if (!g_dashboardRenderer.Initialize(style, InpShowDashboard, InpDashboardX, InpDashboardY, InpDashboardWidth))
+    if (!g_dashboardRenderer.Initialize(style, cfg.showDashboard, cfg.dashboardX, cfg.dashboardY, cfg.dashboardWidth))
     {
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CDashboardRenderer::Initialize() FAILED.");
         return INIT_FAILED;
@@ -638,8 +669,16 @@ int OnCalculate(const int      rates_total,
     g_poiRenderer.Draw(g_poi, time, limitBars);
     g_deliveryRenderer.Draw(g_delivery, g_objective, time, close, limitBars);
 
-    datetime gmtTime = time[0] - InpGmtOffset * 3600;
-    g_dashboardRenderer.Draw(g_poi, g_delivery, g_objective, g_swings, g_structure, g_breaks, g_orderFlow, g_liquidity, g_confirmation, g_entry, g_risk, time, close, limitBars, gmtTime);
+    // Check showDashboard flag before drawing
+    if (cfg.showDashboard)
+    {
+        datetime gmtTime = time[0] - cfg.gmtOffset * 3600;
+        g_dashboardRenderer.Draw(g_poi, g_delivery, g_objective, g_swings, g_structure, g_breaks, g_orderFlow, g_liquidity, g_confirmation, g_entry, g_risk, time, close, limitBars, gmtTime);
+    }
+    else
+    {
+        g_dashboardRenderer.Reset(); // Wipe panel objects if disabled
+    }
 
     //--- Force chart refresh to draw changes instantly
     ChartRedraw(0);

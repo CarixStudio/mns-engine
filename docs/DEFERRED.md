@@ -34,9 +34,9 @@ This document is the project-wide register for unresolved work, technical debt, 
 | ID | Issue | Status | Severity | Discovered | Revisit | Category |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **MNS-ISSUE-001** | [CRT / IRL / ERL Terminology Mismatch](#mns-issue-001-crt--irl--erl-terminology-mismatch) | ✅ RESOLVED | High | Stage 0 | Stage 4 | Specification Ambiguity |
-| **MNS-ISSUE-002** | [Unification of Risk Sizing & Spread Filters](#mns-issue-002-unification-of-risk-sizing--spread-filters-in-configuration) | DEFERRED | Medium | Stage 0 | Stage 6 | Configuration Inconsistency |
+| **MNS-ISSUE-002** | [Unification of Risk Sizing & Spread Filters](#mns-issue-002-unification-of-risk-sizing--spread-filters-in-configuration) | ✅ RESOLVED | Medium | Stage 0 | Stage 6 | Configuration Inconsistency |
 | **MNS-ISSUE-003** | [Historical Delivery Leg & Target Data Storage](#mns-issue-003-historical-delivery-leg--target-dol-data-storage) | ✅ RESOLVED | Low | Stage 0 | Post-Indicator | Technical Debt / Feature |
-| **MNS-ISSUE-004** | [Session Parameter & GMT Centralization](#mns-issue-004-session-parameter--gmt-offset-centralization) | DEFERRED | Low | Stage 0 | Stage 6 | Configuration Inconsistency |
+| **MNS-ISSUE-004** | [Session Parameter & GMT Centralization](#mns-issue-004-session-parameter--gmt-offset-centralization) | ✅ RESOLVED | Low | Stage 0 | Stage 6 | Configuration Inconsistency |
 | **MNS-ISSUE-005** | [SSwingPoint Monotonic ID Extension](#mns-issue-005-sswingpoint-monotonic-id-extension) | DEFERRED | Low | Module 002 | Phase 2 | Technical Debt |
 | **MNS-ISSUE-006** | [Delivery Leg Replacement vs. Archival Rules](#mns-issue-006-delivery-leg-replacement-vs-archival-rules) | ✅ RESOLVED | Medium | Module 006 | Stage 4 | Specification Ambiguity |
 | **MNS-ISSUE-007** | [Delivery Leg Mitigation Wick Trigger](#mns-issue-007-delivery-leg-mitigation-wick-trigger) | ✅ RESOLVED | Medium | Module 006 | Stage 4 | Specification Ambiguity |
@@ -44,8 +44,8 @@ This document is the project-wide register for unresolved work, technical debt, 
 | **MNS-ISSUE-009** | [Liquidity Pool Buffer Capacity Limit](#mns-issue-009-liquidity-pool-buffer-capacity-limit) | ✅ RESOLVED | Low | Module 007 | Stage 8 | Specification Ambiguity |
 | **MNS-ISSUE-010** | [Opposing HTF POI Sizing & Scoring Weights](#mns-issue-010-opposing-htf-poi-sizing--scoring-weights) | ✅ RESOLVED | Medium | Module 009 | Stage 9 | Specification Ambiguity |
 | **MNS-ISSUE-011** | [Candlestick Strong Rejection Formula](#mns-issue-011-candlestick-strong-rejection-formula) | ✅ RESOLVED | Medium | Module 010 | Stage 9 | Specification Ambiguity |
-
-> **Resolution Source**: MNS-ISSUE-001 resolved by CLIENT-Q001; MNS-ISSUE-003 resolved by CLIENT-Q002; MNS-ISSUE-006 through 011 resolved by CLIENT-Q003. All decisions locked in `mns-answers2.md`. Commit: Module013-Stage2.
+ 
+> **Resolution Source**: MNS-ISSUE-001 resolved by CLIENT-Q001; MNS-ISSUE-003 resolved by CLIENT-Q002; MNS-ISSUE-006 through 011 resolved by CLIENT-Q003 (locked in `mns-answers2.md`); MNS-ISSUE-002 and MNS-ISSUE-004 resolved by Stage 6. Commit: Module013-Stage6.
 
 ---
 
@@ -77,23 +77,22 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-002: Unification of Risk Sizing & Spread Filters in Configuration
 - **ID**: MNS-ISSUE-002
-- **Status**: DEFERRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Medium
 - **Discovered In**: Stage 0 Audit
 - **Origin Module**: Module 012 (Risk Engine)
 - **Affected Module(s)**: Module 011 (Entry), Module 012 (Risk), Module 013 (Indicator)
-- **Current Stage**: Stage 0 (Audit)
+- **Current Stage**: Stage 6 (Configuration Binding)
 - **Revisit Stage**: Stage 6 (Configuration Binding)
 - **Category**: Configuration Inconsistency
 - **Problem**: User parameters like risk percentage (`desiredRiskPercent`) and spread threshold (`maxSpreadPoints`) are passed via direct methods or hardcoded, rather than unified in `SEngineConfig` / `MNSConfig.mqh`.
-- **Why It Matters**: The dashboard needs to calculate and display pre-trade volume sizes. If these settings are not centralized in configuration files, the indicator and EA calculations will drift.
-- **Current Understanding**: Sizing rules (minimum 1.5R, trailing step, partial closes) are strategy invariants and must remain hardcoded. User settings (risk percent, max spread) must be configurable.
-- **Required Decision**: Update `SEngineConfig` to include these risk settings or handle them as standalone indicator inputs.
-- **Proposed Action**: Manage them as local indicator inputs for Stages 1–5. Add them to `SEngineConfig` in `MNSConfig.mqh` during Stage 6.
-- **Dependencies**: None.
+- **Resolution**:
+  - Added `desiredRiskPercent` and `maxSpreadPoints` to `SEngineConfig` in `MNSConfig.mqh`.
+  - Linked indicator inputs and INI file loading directly to `CMNSConfig` on `OnInit()`.
+  - Configured `CEntryEngine` and `CRiskEngine` to initialize from unified settings retrieved dynamically from `CMNSConfig::GetActive()`.
 - **Owner**: Technical Lead.
 - **Resolution Criteria**: Unification of configuration schema.
-- **Evidence / Source**: [CRiskEngine.mqh:L40-43](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/CRiskEngine.mqh#L40-L43) / [MNSConfig.mqh:L25-34](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/MNSConfig.mqh#L25-L34)
+- **Evidence / Source**: [MNSConfig.mqh](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/MNSConfig.mqh)
 - **Related Issues**: [M13-ISSUE-002](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/docs/modules/013_ISSUES.md#m13-issue-002-risk--spread-configuration-inconsistency)
 
 ---
@@ -123,23 +122,21 @@ This document is the project-wide register for unresolved work, technical debt, 
 
 ### MNS-ISSUE-004: Session Parameter & GMT Offset Centralization
 - **ID**: MNS-ISSUE-004
-- **Status**: DEFERRED
+- **Status**: ✅ RESOLVED
 - **Severity**: Low
 - **Discovered In**: Stage 0 Audit
 - **Origin Module**: Module 007 (Liquidity Engine)
 - **Affected Module(s)**: Module 007 (Liquidity), Module 009 (Objectives), Module 013 (Indicator)
-- **Current Stage**: Stage 0 (Audit)
+- **Current Stage**: Stage 6 (Configuration Binding)
 - **Revisit Stage**: Stage 6 (Configuration Binding)
 - **Category**: Configuration Inconsistency
 - **Problem**: Trading session hour ranges and GMT timezone offsets are hardcoded or passed as magic numbers in multiple modules.
-- **Why It Matters**: To render active session highlights on the dashboard, the indicator must perform timezone conversions. If timezone parameters are not centralized, calculation drifts will occur.
-- **Current Understanding**: GMT offset conversions are handled statically by `CMNSUtils`.
-- **Required Decision**: Centralize session parameters in `MNSConfig` or keep them hardcoded.
-- **Proposed Action**: Dashboard will calculate sessions statically in Stage 5. Add timezone offset inputs to `MNSConfig` in Stage 6.
-- **Dependencies**: Centralized configuration binding.
+- **Resolution**:
+  - Centralized `gmtOffset` in `SEngineConfig` structure and `CMNSConfig` system.
+  - Bound timezone-shifted session detections inside `CLiquidityEngine` and timezone-shifted dashboard clock calculations directly to the unified `cfg.gmtOffset` setting.
 - **Owner**: Technical Lead.
 - **Resolution Criteria**: Session parameters centralized in configuration schema.
-- **Evidence / Source**: [CLiquidityEngine.mqh:L446](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/CLiquidityEngine.mqh#L446) / [CObjectiveEngine.mqh:L346](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/CObjectiveEngine.mqh#L346)
+- **Evidence / Source**: [MNSConfig.mqh](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/Include/MNS/MNSConfig.mqh)
 - **Related Issues**: [M13-ISSUE-004](file:///c:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/docs/modules/013_ISSUES.md#m13-issue-004-session-parameter-centralization)
 
 ---
