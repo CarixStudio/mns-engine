@@ -63,6 +63,13 @@ struct SEngineConfig
     int    dashboardX;                // X-coordinate dashboard pixel offset
     int    dashboardY;                // Y-coordinate dashboard pixel offset
     int    dashboardWidth;            // Panel width in pixels
+
+    //--- Stage 7 additions
+    bool   showZonePremium;           // Enable premium zone drawing
+    bool   showZoneDiscount;          // Enable discount zone drawing
+    bool   showZoneEquilibrium;       // Enable equilibrium line drawing
+    bool   showSessions;              // Enable session shading bands
+    int    maxRenderedSessions;       // Max historical session shading blocks to render
 };
 
 //+------------------------------------------------------------------+
@@ -101,6 +108,13 @@ public:
         s_config.dashboardX           = 20;
         s_config.dashboardY           = 20;
         s_config.dashboardWidth       = 250;
+
+        //--- Stage 7 defaults
+        s_config.showZonePremium      = true;
+        s_config.showZoneDiscount     = true;
+        s_config.showZoneEquilibrium  = true;
+        s_config.showSessions         = true;
+        s_config.maxRenderedSessions  = 15;
     }
 
     /// @brief Returns a copy of the active engine configuration.
@@ -306,6 +320,34 @@ public:
             MNS_Assert(val >= 150 && val <= 500, "UpdateParameter: dashboardWidth must be [150..500]");
             if (val < 150 || val > 500) return false;
             s_config.dashboardWidth = val;
+            return true;
+        }
+        else if (name == "showZonePremium")
+        {
+            s_config.showZonePremium = (value != 0.0);
+            return true;
+        }
+        else if (name == "showZoneDiscount")
+        {
+            s_config.showZoneDiscount = (value != 0.0);
+            return true;
+        }
+        else if (name == "showZoneEquilibrium")
+        {
+            s_config.showZoneEquilibrium = (value != 0.0);
+            return true;
+        }
+        else if (name == "showSessions")
+        {
+            s_config.showSessions = (value != 0.0);
+            return true;
+        }
+        else if (name == "maxRenderedSessions")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 3 && val <= 60, "UpdateParameter: maxRenderedSessions must be [3..60]");
+            if (val < 3 || val > 60) return false;
+            s_config.maxRenderedSessions = val;
             return true;
         }
         

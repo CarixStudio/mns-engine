@@ -528,10 +528,6 @@ int OnCalculate(const int      rates_total,
     ArraySetAsSeries(close, true);
     ArraySetAsSeries(time,  true);
 
-    //--- Log entry for debugging attach/recalculation issues (printed after setting time array series order)
-    Print(StringFormat("[DEBUG] [MNS_Indicator] OnCalculate: rates_total=%d, prev_calculated=%d, live_time=%s", 
-                       rates_total, prev_calculated, TimeToString(time[0], TIME_DATE|TIME_MINUTES|TIME_SECONDS)));
-
     //--- Detect whether this is a new bar or a tick within the same bar.
     //    MT5 convention: if prev_calculated == rates_total, no new bar has
     //    closed since the last OnCalculate() call.
@@ -548,6 +544,10 @@ int OnCalculate(const int      rates_total,
 
     //--- Update the last-bar timestamp tracker.
     s_lastBarTime = time[0];
+
+    //--- Log entry for debugging attach/recalculation issues (printed after setting time array series order)
+    Print(StringFormat("[DEBUG] [MNS_Indicator] OnCalculate: rates_total=%d, prev_calculated=%d, live_time=%s", 
+                       rates_total, prev_calculated, TimeToString(time[0], TIME_DATE|TIME_MINUTES|TIME_SECONDS)));
 
     //--- Compute the current ATR at bar index 1 (last closed bar).
     //    Index 0 is the forming candle — never used for ATR input.

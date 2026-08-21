@@ -68,10 +68,34 @@ These represent active algorithmic delivery targets and trend legs:
 
 ---
 
-## 6. Dashboard Panel Reference Guide
+## 6. Premium/Discount Zones (Range Shading)
+The indicator draws horizontal shaded zones anchored between the latest confirmed external swing high and low to partition the active dealing range:
+
+| Visual Element | Object Type | Color / Style | Meaning in Strategy |
+|---|---|---|---|
+| **Premium Zone** | **Rectangle (Fill)** | **Dark Red** (`C'0x2F, 0x0A, 0x0A'`) | **Premium Pricing (Expensive)**: The upper 50% of the active range. Only search for bearish (sell) setups in this zone. |
+| **Discount Zone** | **Rectangle (Fill)** | **Dark Green** (`C'0x0A, 0x2A, 0x14'`) | **Discount Pricing (Cheap)**: The lower 50% of the active range. Only search for bullish (buy) setups in this zone. |
+| **Equilibrium** | **Trend Line** | **Gray Dashed Line** (`clrGray`, `STYLE_DASH`) | **Equilibrium (Fair Value)**: The exact 50% midpoint between the range high and low. Avoid taking entries close to or directly on this level. |
+
+---
+
+## 7. Trading Session Shading (Vertical Columns)
+To segment trading days and identify institutional volume windows, the indicator draws vertical shaded columns in the chart background:
+
+| Visual Element | GMT Hour Range | Color / Style | Meaning in Strategy |
+|---|---|---|---|
+| **Asia Session** | `00:00 <= hour < 08:00` | **Dark Blue-Gray** (`C'0x05, 0x05, 0x1F'`) | **Tokyo / Sydney Open**: Low-volatility range-bound consolidation phase. Used to establish the daily initial high and low boundaries. |
+| **London-Only** | `08:00 <= hour < 13:00` | **Dark Green-Gray** (`C'0x05, 0x1F, 0x05'`) | **London Session**: High-volatility European volume surge. Often creates the initial high or low of the day. |
+| **London/NY Overlap**| `13:00 <= hour < 16:00` | **Dark Purple-Gray** (`C'0x1F, 0x05, 0x1F'`) | **London / New York Overlap**: The highest-volume window of the day. Maximum algorithmic volatility; high-probability trading window. |
+| **NY-Only** | `16:00 <= hour < 21:00` | **Dark Orange-Gray** (`C'0x1F, 0x14, 0x05'`) | **New York Afternoon**: Trend continuations or reversals after London closes. |
+| **Off-hours** | `21:00 <= hour < 24:00` | **No Shading** (Transparent) | **Market Close / Transition**: Low volume; spreads widen. Strategy execution is deactivated. |
+
+---
+
+## 8. Dashboard Panel Reference Guide
 The floating status dashboard displays the real-time calculated state of the 11 core strategy engines. Text colors are dynamically updated to highlight bullish strength, bearish risk, or consolidation phases:
 
-### 6.1 Row-by-Row Definitions
+### 8.1 Row-by-Row Definitions
 
 | Row Label | Displayed Value Example | Strategy Meaning |
 |---|---|---|
@@ -82,16 +106,18 @@ The floating status dashboard displays the real-time calculated state of the 11 
 | **Last BOS** | `Bullish @ 1.35712` / `None` | Price and direction of the last confirmed Break of Structure. |
 | **Last CHoCH** | `Bearish @ 1.34921` / `None` | Price and direction of the last confirmed Change of Character (trend shift point). |
 | **Liq Bias** | `Buy Side` / `Sell Side` / `Balanced` | Tells you whether price is magnetically drawn upwards (`Buy Side`) or downwards (`Sell Side`) based on the active target. |
-| **Active DOL** | `1.35582 (Ext Swing)` / `None` | The active target level (Draw on Liquidity) price is moving toward. |
+| **TP (DOL Target)** | `1.35582 (Ext Swing)` / `None` | The active target level (Draw on Liquidity) representing the Take Profit target. |
 | **Active POI** | `Bullish FVG (1.36285-1.36295)` | The closest active Order Block or Fair Value Gap zone that price is interacting with. |
 | **DR Zone** | `Discount` / `Premium` / `Equilibrium` | Where current price sits relative to the current 50% midpoint (Equilibrium) of the trading range. |
 | **Session** | `Tokyo` / `London` / `NY` / `Overlap` | The active institutional trading session(s) based on GMT broker time. |
 | **Confirmation** | `None` / `Confirmed` | Verification that all Strategy 3 rejection and confidence rules have passed. |
-| **Entry** | `None` / `BUY TRIGGERED` | Execution signal state for entry orders. |
+| **Entry Signal** | `None` / `Buy Triggered` / `Executed` | Signal execution state machine status. |
+| **Entry Price** | `1.34821` / `None` | The exact price level where the entry order was triggered/filled. |
+| **SL (Stop Loss)** | `1.34582` / `None` | The calculated Stop Loss price level based on structural invalidation bounds. |
 
 ---
 
-### 6.2 Color-Coding Key
+### 8.2 Color-Coding Key
 
 To help you scan the dashboard in split-seconds, the text color codes map directly to strategy logic:
 

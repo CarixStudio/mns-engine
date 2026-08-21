@@ -195,6 +195,10 @@ private:
         SetObjectVisibility("MNS_DASH_VAL_CONFIRMATION", false);
         SetObjectVisibility("MNS_DASH_LBL_ENTRY", false);
         SetObjectVisibility("MNS_DASH_VAL_ENTRY", false);
+        SetObjectVisibility("MNS_DASH_LBL_ENTRY_PRICE", false);
+        SetObjectVisibility("MNS_DASH_VAL_ENTRY_PRICE", false);
+        SetObjectVisibility("MNS_DASH_LBL_SL", false);
+        SetObjectVisibility("MNS_DASH_VAL_SL", false);
     }
 
     /// @brief Shows all detail info rows (used when expanded).
@@ -226,6 +230,10 @@ private:
         SetObjectVisibility("MNS_DASH_VAL_CONFIRMATION", true);
         SetObjectVisibility("MNS_DASH_LBL_ENTRY", true);
         SetObjectVisibility("MNS_DASH_VAL_ENTRY", true);
+        SetObjectVisibility("MNS_DASH_LBL_ENTRY_PRICE", true);
+        SetObjectVisibility("MNS_DASH_VAL_ENTRY_PRICE", true);
+        SetObjectVisibility("MNS_DASH_LBL_SL", true);
+        SetObjectVisibility("MNS_DASH_VAL_SL", true);
     }
 
     /// @brief Positions a row of labels horizontally inside the panel.
@@ -389,6 +397,10 @@ public:
         DeleteObject("MNS_DASH_VAL_CONFIRMATION");
         DeleteObject("MNS_DASH_LBL_ENTRY");
         DeleteObject("MNS_DASH_VAL_ENTRY");
+        DeleteObject("MNS_DASH_LBL_ENTRY_PRICE");
+        DeleteObject("MNS_DASH_VAL_ENTRY_PRICE");
+        DeleteObject("MNS_DASH_LBL_SL");
+        DeleteObject("MNS_DASH_VAL_SL");
     }
 
     /// @brief Cleans up terminal global variables associated with this chart.
@@ -407,8 +419,8 @@ public:
     {
         if (m_isCollapsed)
             return 22 + m_style.paddingDashboard;
-        // Header (22) + padding top (8) + 13 rows * 16 (208) + padding before button (8) + button height (18) + padding bottom (8) = 264 px
-        return 22 + m_style.paddingDashboard + 13 * m_style.rowHeightDashboard + m_style.paddingDashboard + 18 + m_style.paddingDashboard;
+        // Header (22) + padding top (8) + 15 rows * 16 (240) + padding before button (8) + button height (18) + padding bottom (8) = 296 px
+        return 22 + m_style.paddingDashboard + 15 * m_style.rowHeightDashboard + m_style.paddingDashboard + 18 + m_style.paddingDashboard;
     }
 
     /// @brief Ensures all layout objects are created and formatted.
@@ -439,12 +451,14 @@ public:
         CreateLabel("MNS_DASH_LBL_BOS", "Last BOS:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_CHOCH", "Last CHoCH:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_BIAS", "Liq Bias:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
-        CreateLabel("MNS_DASH_LBL_DOL", "Active DOL:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_DOL", "TP (DOL Target):", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_POI", "Active POI:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_ZONE", "DR Zone:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_SESSION", "Session:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_CONFIRMATION", "Confirmation:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
-        CreateLabel("MNS_DASH_LBL_ENTRY", "Entry:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_ENTRY", "Entry Signal:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_ENTRY_PRICE", "Entry Price:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_SL", "SL (Stop Loss):", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
 
         // 7. Detail values (default initial texts to avoid empty labels showing default MT5 "Label" text)
         CreateLabel("MNS_DASH_VAL_SYMBOL", "N/A", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
@@ -460,6 +474,8 @@ public:
         CreateLabel("MNS_DASH_VAL_SESSION", "Closed", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
         CreateLabel("MNS_DASH_VAL_CONFIRMATION", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
         CreateLabel("MNS_DASH_VAL_ENTRY", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_ENTRY_PRICE", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
+        CreateLabel("MNS_DASH_VAL_SL", "None", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
 
         // 8. Bottom Reset Button
         CreateButton("MNS_DASH_BTN_RESET", "Reset Position", m_width - m_style.paddingDashboard * 2, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
@@ -537,10 +553,12 @@ public:
             SetRowPosition("SESSION", startY + 10 * m_style.rowHeightDashboard);
             SetRowPosition("CONFIRMATION", startY + 11 * m_style.rowHeightDashboard);
             SetRowPosition("ENTRY", startY + 12 * m_style.rowHeightDashboard);
+            SetRowPosition("ENTRY_PRICE", startY + 13 * m_style.rowHeightDashboard);
+            SetRowPosition("SL", startY + 14 * m_style.rowHeightDashboard);
 
             // Reset Button
             ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
-            ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, m_yOffset + 22 + 13 * m_style.rowHeightDashboard + m_style.paddingDashboard * 2);
+            ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, m_yOffset + 22 + 15 * m_style.rowHeightDashboard + m_style.paddingDashboard * 2);
         }
     }
 
@@ -1141,6 +1159,21 @@ public:
         // ------------------------------------------
         // Render Execution
         // ------------------------------------------
+        // Extract exact Entry Price and SL values if a signal is active or has been executed
+        SEntrySignal activeSig = entryEngine.GetActiveSignal();
+        string entryPriceVal = "None";
+        color  entryPriceCol = clrLightGray;
+        string slVal = "None";
+        color  slCol = clrLightGray;
+
+        if (entState == ENTRY_STATE_ACTIVE || entState == ENTRY_STATE_EXECUTED)
+        {
+            entryPriceVal = DoubleToString(activeSig.entryPrice, _Digits);
+            entryPriceCol = clrWhite;
+            slVal = DoubleToString(activeSig.stopLoss, _Digits);
+            slCol = clrOrangeRed;
+        }
+
         if (m_isCollapsed)
         {
             // Collapsed HUD title updates showing desaturated state
@@ -1168,6 +1201,8 @@ public:
             UpdateRowText("SESSION", sessionVal, m_style.colorDashboardValue);
             UpdateRowText("CONFIRMATION", confVal, confCol);
             UpdateRowText("ENTRY", entVal, entCol);
+            UpdateRowText("ENTRY_PRICE", entryPriceVal, entryPriceCol);
+            UpdateRowText("SL", slVal, slCol);
         }
     }
 };

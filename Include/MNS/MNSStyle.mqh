@@ -86,6 +86,18 @@ struct SIndicatorStyle {
     int rowHeightDashboard;      ///< Height of each text row in px (16)
     int paddingDashboard;        ///< Padding inside the panel in px (10)
 
+    //--- Premium/Discount Zone Styling
+    color colorZonePremium;       ///< Premium zone background fill
+    color colorZoneDiscount;      ///< Discount zone background fill
+    color colorZoneEquilibrium;   ///< Equilibrium line color
+    ENUM_LINE_STYLE styleZoneEq;  ///< Equilibrium line style
+
+    //--- Session Shading Colors
+    color colorSessionAsia;       ///< Asia session background
+    color colorSessionLondon;     ///< London-only background
+    color colorSessionNY;         ///< NY-only background
+    color colorSessionOverlap;    ///< London/NY overlap background
+
     /// @brief Resets the style structure to safe default premium theme values.
     void Reset() {
         // Default premium theme colors (matching UI/UX spec: Lime/Red/Orange/Gray)
@@ -156,6 +168,18 @@ struct SIndicatorStyle {
         fontSizeDashboard = 8;
         rowHeightDashboard = 16;
         paddingDashboard = 10;
+
+        // Premium/Discount Zone Styling
+        colorZonePremium     = C'0x2F, 0x0A, 0x0A'; // Dark Red
+        colorZoneDiscount    = C'0x0A, 0x2A, 0x14'; // Dark Green
+        colorZoneEquilibrium = clrGray;
+        styleZoneEq          = STYLE_DASH;
+
+        // Session Shading Colors (very dark desaturated tints)
+        colorSessionAsia    = C'0x05, 0x05, 0x1F'; // Dark Blue-Gray
+        colorSessionLondon  = C'0x05, 0x1F, 0x05'; // Dark Green-Gray
+        colorSessionNY      = C'0x1F, 0x14, 0x05'; // Dark Orange-Gray
+        colorSessionOverlap = C'0x1F, 0x05, 0x1F'; // Dark Purple-Gray
     }
 };
 

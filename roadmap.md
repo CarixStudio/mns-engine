@@ -215,7 +215,7 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 | **Stage 4** | **Advanced Zone Renderers (OB/FVG/Delivery/DOL)** | ✅ **Complete** — OB, Breaker, MB, FVG zones rendering as filled rectangles with lifecycle transitions; active delivery leg and DOL targets rendering cleanly. |
 | Stage 5 | Dashboard & Info Panel | ✅ Complete — Stacked vertical info panel displaying active states from all 11 core engines in real time. |
 | Stage 6 | Configuration Binding (INF-004 integration) | ✅ Complete — Centralized dynamic loading from config profiles, bound to MT5 inputs, all 11 engines and renderers synced. |
-| Stage 7 | Session Renderers & Premium/Discount Zones | ⬜ Pending |
+| Stage 7 | Session Renderers & Premium/Discount Zones | ✅ Complete — Session shading bands and Premium/Discount zones rendering live. 0 errors, 0 warnings. |
 | Stage 8 | Visual Performance Profiling | ⬜ Pending |
 | Stage 9 | Integration Testing | ⬜ Pending |
 | Stage 10 | Production Build & Release | ⬜ Pending |
@@ -238,6 +238,14 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 - `Include/MNS/Renderers/CDashboardRenderer.mqh` — Bound layout positioning, visibility, and sizing metrics to config
 - `Indicators/MNS_Indicator.mq5` — Implemented sequential loading (`SetDefaults` -> `LoadFromFile` -> Sync inputs -> Retrieve cfg) in `OnInit()`, updated dashboard checking in `OnCalculate()`
 - `docs/modules/013_STAGE_06_DESIGN.md` — Stage 6 detailed design specifications
+
+### Stage 7 Deliverables
+- `Include/MNS/MNSStyle.mqh` — Extended `SIndicatorStyle` with zone and session styling tokens and default desaturated tints
+- `Include/MNS/MNSConfig.mqh` — Extended `SEngineConfig` with visibility switches, validation rules, and capping parameters
+- `Include/MNS/Renderers/CZoneRenderer.mqh` — Visual renderer drawing Premium/Discount filled rectangles and Equilibrium midpoint trend line anchored by external swings
+- `Include/MNS/Renderers/CSessionRenderer.mqh` — Visual renderer drawing vertical session shading bands with run-length grouping, weekend stretching protection, and capping limits
+- `Indicators/MNS_Indicator.mq5` — Updated coordinator to register new inputs, sync settings to config, and execute new renderers
+- `docs/modules/013_STAGE_07_DESIGN.md` — Stage 7 detailed design specifications
 
 
 
