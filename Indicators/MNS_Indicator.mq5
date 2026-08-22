@@ -58,6 +58,9 @@
 //--- Enable logger macro output
 #define MNS_LOG_ENABLE
 
+//--- Enable performance profiling telemetry
+#define MNS_PROFILING_ENABLE
+
 //+------------------------------------------------------------------+
 //| Engine Include Headers (dependency order)                        |
 //+------------------------------------------------------------------+
@@ -68,6 +71,7 @@
 #include <MNS/MNSLogger.mqh>
 #include <MNS/MNSVolatility.mqh>
 #include <MNS/MNSConfig.mqh>
+#include <MNS/MNSProfiler.mqh>
 
 // Analysis engines — in DAG dependency order
 #include <MNS/CSwingDetector.mqh>
@@ -90,6 +94,8 @@
 #include <MNS/Renderers/CPOIRenderer.mqh>
 #include <MNS/Renderers/CDeliveryRenderer.mqh>
 #include <MNS/Renderers/CDashboardRenderer.mqh>
+#include <MNS/Renderers/CZoneRenderer.mqh>
+#include <MNS/Renderers/CSessionRenderer.mqh>
 
 //+------------------------------------------------------------------+
 //| Indicator Input Parameters                                        |
@@ -143,6 +149,21 @@ input int    InpDashboardY       = 20;
 /// @brief Width of dashboard panel in pixels.
 input int    InpDashboardWidth   = 250;
 
+/// @brief Enable rendering of Premium Zones on the chart.
+input bool   InpShowZonePremium      = true;
+
+/// @brief Enable rendering of Discount Zones on the chart.
+input bool   InpShowZoneDiscount     = true;
+
+/// @brief Enable rendering of the Equilibrium midpoint line.
+input bool   InpShowZoneEquilibrium  = true;
+
+/// @brief Enable background session shading bands.
+input bool   InpShowSessions         = true;
+
+/// @brief Maximum historical session shading blocks to render.
+input int    InpMaxRenderedSessions  = 15;
+
 //+------------------------------------------------------------------+
 //| Module Identifier                                                 |
 //+------------------------------------------------------------------+
@@ -187,6 +208,8 @@ CLiquidityRenderer       g_liquidityRenderer;
 CPOIRenderer             g_poiRenderer;
 CDeliveryRenderer        g_deliveryRenderer;
 CDashboardRenderer       g_dashboardRenderer;
+CZoneRenderer            g_zoneRenderer;
+CSessionRenderer         g_sessionRenderer;
 
 //+------------------------------------------------------------------+
 //| Lifecycle State                                                   |
@@ -257,6 +280,11 @@ int OnInit()
     CMNSConfig::UpdateParameter("dashboardX", (double)InpDashboardX);
     CMNSConfig::UpdateParameter("dashboardY", (double)InpDashboardY);
     CMNSConfig::UpdateParameter("dashboardWidth", (double)InpDashboardWidth);
+    CMNSConfig::UpdateParameter("showZonePremium", InpShowZonePremium ? 1.0 : 0.0);
+    CMNSConfig::UpdateParameter("showZoneDiscount", InpShowZoneDiscount ? 1.0 : 0.0);
+    CMNSConfig::UpdateParameter("showZoneEquilibrium", InpShowZoneEquilibrium ? 1.0 : 0.0);
+    CMNSConfig::UpdateParameter("showSessions", InpShowSessions ? 1.0 : 0.0);
+    CMNSConfig::UpdateParameter("maxRenderedSessions", (double)InpMaxRenderedSessions);
 
     // Fetch active unified configuration context
     SEngineConfig cfg = CMNSConfig::GetActive();
@@ -407,6 +435,16 @@ int OnInit()
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CDashboardRenderer::Initialize() FAILED.");
         return INIT_FAILED;
     }
+    if (!g_zoneRenderer.Initialize(style))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CZoneRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
+    if (!g_sessionRenderer.Initialize(style, cfg.maxRenderedSessions))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CSessionRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
     MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "Visual renderers initialized.");
 
     //--- All engines initialized successfully
@@ -453,11 +491,19 @@ void OnDeinit(const int reason)
     g_liquidityRenderer.Reset();
     g_poiRenderer.Reset();
     g_deliveryRenderer.Reset();
+    g_zoneRenderer.Reset();
+    g_sessionRenderer.Reset();
     if (reason == REASON_REMOVE)
     {
         g_dashboardRenderer.DeleteGlobalVariables();
     }
     g_dashboardRenderer.Reset();
+
+    #ifdef MNS_PROFILING_ENABLE
+        MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "Generating final performance profile report...");
+        CMNSProfiler::ReportTelemetry();
+        CMNSProfiler::Reset();
+    #endif
 
     //--- Close logger file handle
     CMNSLogger::Close();
@@ -545,6 +591,9 @@ int OnCalculate(const int      rates_total,
     //--- Update the last-bar timestamp tracker.
     s_lastBarTime = time[0];
 
+    //--- Start main calculate performance profiling
+    MNS_ProfileStart("Total_Calculate");
+
     //--- Log entry for debugging attach/recalculation issues (printed after setting time array series order)
     Print(StringFormat("[DEBUG] [MNS_Indicator] OnCalculate: rates_total=%d, prev_calculated=%d, live_time=%s", 
                        rates_total, prev_calculated, TimeToString(time[0], TIME_DATE|TIME_MINUTES|TIME_SECONDS)));
@@ -555,7 +604,10 @@ int OnCalculate(const int      rates_total,
     SEngineConfig cfg = CMNSConfig::GetActive();
     int atrPeriod = cfg.atrPeriod; // default 14
     if (rates_total < atrPeriod + 2)
+    {
+        MNS_ProfileStop("Total_Calculate");
         return 0;
+    }
 
     double currentAtr = CMNSVolatility::CalculateATR(high, low, close, 1, atrPeriod, rates_total);
     if (currentAtr <= 0.0)
@@ -563,6 +615,7 @@ int OnCalculate(const int      rates_total,
         MNS_Log(MNS_LOG_WARN, MNS_INDICATOR_SOURCE,
             StringFormat("ATR calculation returned 0 at bar %d. Skipping engine update.",
                          rates_total));
+        MNS_ProfileStop("Total_Calculate");
         return rates_total;
     }
 
@@ -587,22 +640,31 @@ int OnCalculate(const int      rates_total,
     //+------------------------------------------------------------------+
     //| Engine Update Sequence — strict DAG order                        |
     //+------------------------------------------------------------------+
+    MNS_ProfileStart("Core_Engine_Updates");
 
     // 1. CSwingDetector — root of the engine graph
+    MNS_ProfileStart("Engine_Swings");
     g_swings.Update(high, low, time, limitBars, prevCalc);
+    MNS_ProfileStop("Engine_Swings");
 
     // 2. CStructureEngine — depends on CSwingDetector output
+    MNS_ProfileStart("Engine_Structure");
     g_structure.Update(g_swings, currentAtr);
+    MNS_ProfileStop("Engine_Structure");
 
     // 3. CBreakDetector — depends on CSwingDetector + CStructureEngine
+    MNS_ProfileStart("Engine_Breaks");
     g_breaks.Update(g_swings, g_structure,
                     high, low, close, open, time,
                     limitBars, prevCalc, currentAtr);
+    MNS_ProfileStop("Engine_Breaks");
 
     // 4. COrderFlowEngine — depends on CSwingDetector + CStructureEngine + CBreakDetector
+    MNS_ProfileStart("Engine_OrderFlow");
     g_orderFlow.Update(g_swings, g_structure, g_breaks,
                        high, low, close, open, time,
                        limitBars, prevCalc, currentAtr);
+    MNS_ProfileStop("Engine_OrderFlow");
 
     // 5. CDeliveryStructureEngine
     //    — depends on CSwingDetector, CStructureEngine, CBreakDetector, COrderFlowEngine
@@ -610,65 +672,105 @@ int OnCalculate(const int      rates_total,
     //      first pass (CObjectiveEngine has not run yet). On subsequent bars,
     //      the previous objective DOL price is passed to enable the engine to
     //      compare against its internal delivery target.
+    MNS_ProfileStart("Engine_Delivery");
     double prevDolPrice = g_objective.GetDolPrice();
     g_delivery.Update(g_swings, g_structure, g_breaks, g_orderFlow,
                       high, low, close, open, time,
                       limitBars, prevCalc, currentAtr,
                       prevDolPrice);
+    MNS_ProfileStop("Engine_Delivery");
 
     // 6. CLiquidityEngine — depends on CSwingDetector + CDeliveryStructureEngine
+    MNS_ProfileStart("Engine_Liquidity");
     g_liquidity.Update(g_swings, g_delivery,
                        high, low, close, open, time,
                        limitBars, prevCalc, currentAtr, minBreakDist);
+    MNS_ProfileStop("Engine_Liquidity");
 
     // 7. CPOIEngine
     //    — depends on CSwingDetector, CStructureEngine, CBreakDetector,
     //                 CLiquidityEngine, CDeliveryStructureEngine
+    MNS_ProfileStart("Engine_POI");
     g_poi.Update(g_swings, g_structure, g_breaks, g_liquidity, g_delivery,
                  high, low, close, open, time,
                  limitBars, prevCalc, currentAtr);
+    MNS_ProfileStop("Engine_POI");
 
     // 8. CObjectiveEngine — depends on all previous engines
+    MNS_ProfileStart("Engine_Objective");
     g_objective.Update(g_swings, g_structure, g_breaks, g_orderFlow,
                        g_delivery, g_liquidity, g_poi,
                        high, low, close, open, time,
                        limitBars, prevCalc, currentAtr);
+    MNS_ProfileStop("Engine_Objective");
 
     // 9. CConfirmationEngine — depends on all previous engines
+    MNS_ProfileStart("Engine_Confirmation");
     g_confirmation.Update(g_swings, g_structure, g_breaks, g_orderFlow,
                           g_delivery, g_liquidity, g_poi, g_objective,
                           high, low, close, open, time,
                           limitBars, prevCalc, currentAtr);
+    MNS_ProfileStop("Engine_Confirmation");
 
     // 10. CEntryEngine
     //     — depends on CConfirmationEngine, CObjectiveEngine, CStructureEngine,
     //                  CDeliveryStructureEngine, CPOIEngine
     //     — currentSpreadPoints: obtained from the live spread array index 0
     //       (the forming bar spread is sufficient for the entry filter check).
+    MNS_ProfileStart("Engine_Entry");
     double currentSpread = (ArraySize(spread) > 0) ? (double)spread[0] : 0.0;
     g_entry.Update(g_confirmation, g_objective, g_structure, g_delivery, g_poi,
                    high, low, close, open, time,
                    limitBars, prevCalc, currentSpread);
+    MNS_ProfileStop("Engine_Entry");
 
     // 11. CRiskEngine — no bar-driven Update().
     //     SizePreTrade() and UpdateActiveManagement() are called on-demand
     //     by the EA or the Stage 5 dashboard when a signal is active.
     //     No call is made here.
 
+    MNS_ProfileStop("Core_Engine_Updates");
+    MNS_ProfileStop("Total_Calculate");
+
     //+------------------------------------------------------------------+
     //| Visual Renderers execution (Stage 2)                              |
     //+------------------------------------------------------------------+
+    MNS_ProfileStart("Total_Rendering");
+
     int numSwings = g_swings.GetExternalSwingCount() + g_swings.GetInternalSwingCount();
     int numBreaks = g_breaks.GetBreakCount();
     Print(StringFormat("[DEBUG] [MNS_Indicator] Renderers: ExtSwingCount=%d, IntSwingCount=%d, BreakCount=%d", 
                        g_swings.GetExternalSwingCount(), g_swings.GetInternalSwingCount(), numBreaks));
 
+    MNS_ProfileStart("Render_Swings");
     g_swingRenderer.Draw(g_swings, time, limitBars, currentAtr);
-    g_structureRenderer.Draw(g_breaks, time, limitBars);
-    g_liquidityRenderer.Draw(g_liquidity, time, limitBars);
-    g_poiRenderer.Draw(g_poi, time, limitBars);
-    g_deliveryRenderer.Draw(g_delivery, g_objective, time, close, limitBars);
+    MNS_ProfileStop("Render_Swings");
 
+    MNS_ProfileStart("Render_Structure");
+    g_structureRenderer.Draw(g_breaks, time, limitBars);
+    MNS_ProfileStop("Render_Structure");
+
+    MNS_ProfileStart("Render_Liquidity");
+    g_liquidityRenderer.Draw(g_liquidity, time, limitBars);
+    MNS_ProfileStop("Render_Liquidity");
+
+    MNS_ProfileStart("Render_POI");
+    g_poiRenderer.Draw(g_poi, time, limitBars);
+    MNS_ProfileStop("Render_POI");
+
+    MNS_ProfileStart("Render_Delivery");
+    g_deliveryRenderer.Draw(g_delivery, g_objective, time, close, limitBars);
+    MNS_ProfileStop("Render_Delivery");
+
+    MNS_ProfileStart("Render_Zones");
+    g_zoneRenderer.Draw(g_swings, time, rates_total);
+    MNS_ProfileStop("Render_Zones");
+
+    MNS_ProfileStart("Render_Sessions");
+    g_sessionRenderer.Draw(time, limitBars);
+    MNS_ProfileStop("Render_Sessions");
+
+    MNS_ProfileStart("Render_Dashboard");
     // Check showDashboard flag before drawing
     if (cfg.showDashboard)
     {
@@ -679,6 +781,9 @@ int OnCalculate(const int      rates_total,
     {
         g_dashboardRenderer.Reset(); // Wipe panel objects if disabled
     }
+    MNS_ProfileStop("Render_Dashboard");
+
+    MNS_ProfileStop("Total_Rendering");
 
     //--- Force chart refresh to draw changes instantly
     ChartRedraw(0);
@@ -696,6 +801,23 @@ int OnCalculate(const int      rates_total,
                          g_swings.GetExternalSwingCount() + g_swings.GetInternalSwingCount(),
                          g_breaks.GetBreakCount(),
                          g_poi.GetPoIsCount()));
+    }
+
+    //--- Periodic 1000-calculate telemetry report
+    static int calculateCounter = 0;
+    calculateCounter++;
+    
+    if (calculateCounter >= 1000)
+    {
+        #ifdef MNS_PROFILING_ENABLE
+            if (InpDebugLogging)
+            {
+                MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "Periodic 1000-tick performance profile report:");
+                CMNSProfiler::ReportTelemetry();
+            }
+            CMNSProfiler::Reset(); // Reset to clear accumulated telemetry for the next interval
+        #endif
+        calculateCounter = 0;
     }
 
     //--- Return rates_total to indicate all bars are processed.
