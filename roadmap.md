@@ -200,7 +200,7 @@ Tagged: v0.0.12
 
 ---
 
-## Module 013
+## Module 013 ✅
 
 Indicator Integration (CIndicatorIntegration)
 
@@ -218,7 +218,7 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 | Stage 7 | Session Renderers & Premium/Discount Zones | ✅ Complete — Session shading bands and Premium/Discount zones rendering live. 0 errors, 0 warnings. |
 | Stage 8 | Visual Performance Profiling | ✅ Complete |
 | Stage 9 | Integration Testing | ✅ Complete |
-| Stage 10 | Production Build & Release | ⬜ Pending |
+| Stage 10 | Production Build & Release | ✅ Complete |
 
 ### Stage 4 Deliverables
 - `Include/MNS/MNSStyle.mqh` — Updated with POI, Delivery, and DOL visual style tokens
@@ -254,6 +254,12 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 ### Stage 9 Deliverables
 - `docs/modules/013_STAGE_09_TEST_REPORT.md` — Stage 9 integration test report
 - `Experts/MNS_TestHarness/MNS_TestHarness.mq5` — Unit test suite executed successfully (320 tests passed)
+
+### Stage 10 Deliverables
+- `Indicators/MNS_Indicator.mq5` — Clean production release without profiling overhead.
+- `CHANGELOG.md` — Release logs for v1.0.0.
+
+
 
 
 

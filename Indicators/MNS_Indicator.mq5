@@ -1,32 +1,24 @@
 //+------------------------------------------------------------------+
 //|                                                  MNS_Indicator.mq5 |
 //|                              MNS Trading Engine — Module 013       |
-//|                              Stage 1: Shell & Lifecycle Coordinator|
+//|              MNS Trading Engine — Module 013 Production Release    |
 //|                                                                    |
 //| Purpose:                                                           |
-//|   Coordinator shell for the MNS Trading Engine Strategy 3 indicator|
-//|   integration. Orchestrates engine lifecycle and update sequencing |
-//|   without implementing any visual rendering or trading execution.  |
+//|   Full chart visualization coordinator for the MNS Trading Engine  |
+//|   Strategy 3 indicator integration. Orchestrates engine lifecycle, |
+//|   update sequencing, and all visual rendering layers.              |
 //|                                                                    |
-//| Stage 1 Responsibilities:                                          |
-//|   - Validate chart context (symbol / timeframe).                   |
-//|   - Load engine configuration via CMNSConfig.                      |
-//|   - Instantiate all 11 analysis engine objects.                    |
-//|   - Initialize them in correct DAG dependency order.               |
-//|   - Fail safely with diagnostic messages on any init failure.      |
-//|   - Drive engine Update() calls in dependency order on every closed|
-//|     bar inside OnCalculate().                                       |
-//|   - Cleanly destroy all engines in OnDeinit().                     |
+//| Renderers:                                                         |
+//|   - CSwingRenderer    — External/internal swing high/low arrows.   |
+//|   - CStructureRenderer — BOS/iBOS/CHoCH trend break lines.         |
+//|   - CLiquidityRenderer — BSL/SSL/EQH/EQL liquidity pool lines.     |
+//|   - CPOIRenderer       — OB/Breaker/FVG zone rectangles.           |
+//|   - CDeliveryRenderer  — Active delivery leg & DOL target lines.   |
+//|   - CZoneRenderer      — Premium/Discount/Equilibrium fills.       |
+//|   - CSessionRenderer   — Session shading band rectangles.          |
+//|   - CDashboardRenderer — Floating 16-row status HUD.               |
 //|                                                                    |
-//| Stage 1 Non-Responsibilities (explicitly deferred):                |
-//|   - No chart object creation.                                      |
-//|   - No swing arrows, break labels, OB/FVG rectangles, or lines.    |
-//|   - No dashboard or statistics panel.                              |
-//|   - No trading orders or position management.                      |
-//|   - No risk execution.                                             |
-//|   - No new strategy calculations beyond engine coordination.       |
-//|                                                                    |
-//| Client-Locked Strategy Rules (Stage 1 scope):                      |
+//| Client-Locked Strategy Rules:                                      |
 //|   - Primary execution timeframe: M5.                               |
 //|   - Confirmation uses closed candle (shift 1 on tick, shift 2+     |
 //|     for swing confirmation).                                        |
@@ -41,16 +33,14 @@
 //|   coordinator level because each engine manages its own internal   |
 //|   arrays and states.                                               |
 //|                                                                    |
-//| Version: 1.0                                                       |
-//| Status:  Stage 1 — Shell Only                                      |
+//| Version: 1.0.0                                                     |
+//| Status:  Production Release — Module 013 Complete                  |
 //+------------------------------------------------------------------+
 #property copyright   "MNS Trading Engine"
 #property link        ""
 #property version     "1.00"
-#property description "MNS Trading Engine — Strategy 3 Indicator (Stage 1: Coordinator Shell)"
+#property description "MNS Trading Engine — Strategy 3 Indicator v1.0.0"
 
-//--- Indicator declaration: custom indicator, no sub-window, zero buffers.
-//    Stage 1 renders nothing. Buffers are introduced in Stage 2+.
 #property indicator_chart_window
 #property indicator_buffers 0
 #property indicator_plots   0
@@ -58,8 +48,8 @@
 //--- Enable logger macro output
 #define MNS_LOG_ENABLE
 
-//--- Enable performance profiling telemetry
-#define MNS_PROFILING_ENABLE
+//--- Enable performance profiling telemetry (Deactivated for production release)
+//#define MNS_PROFILING_ENABLE
 
 //+------------------------------------------------------------------+
 //| Engine Include Headers (dependency order)                        |
@@ -736,11 +726,6 @@ int OnCalculate(const int      rates_total,
     //| Visual Renderers execution (Stage 2)                              |
     //+------------------------------------------------------------------+
     MNS_ProfileStart("Total_Rendering");
-
-    int numSwings = g_swings.GetExternalSwingCount() + g_swings.GetInternalSwingCount();
-    int numBreaks = g_breaks.GetBreakCount();
-    Print(StringFormat("[DEBUG] [MNS_Indicator] Renderers: ExtSwingCount=%d, IntSwingCount=%d, BreakCount=%d", 
-                       g_swings.GetExternalSwingCount(), g_swings.GetInternalSwingCount(), numBreaks));
 
     MNS_ProfileStart("Render_Swings");
     g_swingRenderer.Draw(g_swings, time, limitBars, currentAtr);
