@@ -1,6 +1,11 @@
 # MNS Trading Engine — Indicator Visual Reference Guide
 This guide provides an institutional-grade mapping of the visual elements (arrows, lines, rectangles, and colors) rendered on the MetaTrader 5 chart by the MNS Indicator, explaining what each represents in terms of the underlying Strategy 3 trading rules.
 
+## Indicator Chart Overview
+Below is a full visual representation of the MNS Indicator running on a GBPUSD H1 chart, displaying the floating status dashboard, background session shading, Premium/Discount zones, structure levels, and active targets:
+
+![MNS Indicator Chart Overview](file:///C:/Users/CarixStudio/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/mns-engine/assets/stage8_chart_dashboard.png)
+
 ---
 
 ## 1. Swing Highs & Lows (Arrows)
