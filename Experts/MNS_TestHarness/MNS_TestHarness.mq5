@@ -2271,8 +2271,17 @@ void RunModuleINF007Tests() {
 
     AssertTrue(CMNSProfiler::GetCallCount(nestedOuter) == 1, "Outer call count is 1");
     AssertTrue(CMNSProfiler::GetCallCount(nestedInner) == 1, "Inner call count is 1");
-    AssertTrue(CMNSProfiler::GetTotalTimeUs(nestedOuter) >= 10000, "Outer time spans both sleep calls (>= 10ms)");
-    AssertTrue(CMNSProfiler::GetTotalTimeUs(nestedInner) >= 5000, "Inner time spans inner sleep call (>= 5ms)");
+    // Sleep() is a documented no-op in the MT5 Strategy Tester — skip duration checks there.
+    // MQLInfoInteger(MQL_TESTER) returns 1 inside the tester, 0 on a live chart.
+    if (MQLInfoInteger(MQL_TESTER) == 0)
+    {
+        AssertTrue(CMNSProfiler::GetTotalTimeUs(nestedOuter) >= 10000, "Outer time spans both sleep calls (>= 10ms)");
+        AssertTrue(CMNSProfiler::GetTotalTimeUs(nestedInner) >= 5000, "Inner time spans inner sleep call (>= 5ms)");
+    }
+    else
+    {
+        Print("[INFO] [INF-007] Duration assertions skipped in Strategy Tester (Sleep() is a no-op).");
+    }
 
     // 3. Print telemetry log block
     CMNSProfiler::ReportTelemetry();
