@@ -8,7 +8,31 @@ Below is a full visual representation of the MNS Indicator running on a GBPUSD H
 
 ---
 
-## 1. Swing Highs & Lows (Arrows)
+## 1. Execution Visuals (Risk/Reward Projection)
+When an entry signal is active, the indicator projects a localized, TradingView-style Risk/Reward Projection Box to the right of the current bar in the future chart space. This visual cleans up immediately when the signal disappears.
+
+| Visual Component | Object Type | Default Color | Line Style / Border | Purpose |
+|---|---|---|---|---|
+| **Entry Level** | `OBJ_TREND` | **Gold** (`clrGold`) | Solid, `width = 2` | Highlights the trigger entry price. |
+| **Take Profit (TP) Level** | `OBJ_TREND` | **Lime Green** (`clrLime`) | Solid, `width = 1` | Highlights the target profit boundary level. |
+| **Stop Loss (SL) Level** | `OBJ_TREND` | **Red** (`clrRed`) | Solid, `width = 1` | Highlights the invalidation risk boundary level. |
+| **Profit Region** | `OBJ_RECTANGLE` | **Deep Emerald** (`C'0x0C, 0x22, 0x11'`) | Filled, no border | Visualizes the target profit zone. Renders in the chart background. |
+| **Risk Region** | `OBJ_RECTANGLE` | **Deep Maroon** (`C'0x26, 0x0C, 0x0C'`) | Filled, no border | Visualizes the active risk zone. Renders in the chart background. |
+
+Text labels are rendered at the right edge of the box (`X2`) showing the price level, the distance in pips, and the R:R ratio for TP (e.g. `(+40.0 pips / 2.5R)`).
+
+> [!NOTE]
+> **Activation & Rendering Logic**:
+> Since execution visuals require an active entry signal to draw, they will show as **None** on the dashboard and remain hidden from the chart while the confirmation status is **Pending** or **None**.
+> Once a candle closes that satisfies all confirmation rules:
+> 1. **Confirmation** will transition to **Confirmed**.
+> 2. **Entry Signal** will transition to **Active** (or **Executed** if filled).
+> 3. The dashboard will display the calculated **Entry Price** and **Stop Loss**.
+> 4. The **Gold Entry Line**, **Lime TP Line**, **Red SL Line**, and the **Deep Emerald/Maroon background projection boxes** will instantly draw to the right of the live bar.
+
+---
+
+## 2. Swing Highs & Lows (Arrows)
 Swing points represent localized price pivots that define the structural boundaries of the market. The indicator distinguishes between high-timeframe (External) and low-timeframe (Internal) structure:
 
 | Icon | Color | Location | Meaning in Strategy |
@@ -20,7 +44,7 @@ Swing points represent localized price pivots that define the structural boundar
 
 ---
 
-## 2. Market Structure Breaks (Horizontal lines with text)
+## 3. Market Structure Breaks (Horizontal lines with text)
 Structure breaks confirm market trend direction and momentum shifts. They are drawn as horizontal levels starting at the broken swing point:
 
 | Visual Element | Line Style | Color | Meaning in Strategy |
@@ -33,7 +57,7 @@ Structure breaks confirm market trend direction and momentum shifts. They are dr
 
 ---
 
-## 3. Liquidity Pools (Horizontal Levels)
+## 4. Liquidity Pools (Horizontal Levels)
 Liquidity pools represent key retail order levels (stops) that institutional algorithms target for sweeps. The indicator highlights active un-swept zones and marks them as swept when wicks breach them:
 
 | Visual Element | Line Style | Color | Meaning in Strategy |
@@ -46,7 +70,7 @@ Liquidity pools represent key retail order levels (stops) that institutional alg
 
 ---
 
-## 4. Points of Interest (POI) (Filled Rectangles)
+## 5. Points of Interest (POI) (Filled Rectangles)
 Points of Interest are institutional footprint zones where traders look for entry setups. They are drawn using dark desaturated background fills to maintain high contrast with candles and wicks:
 
 | Visual Element | Outline / Border | Fill Color | Meaning in Strategy |
@@ -62,7 +86,7 @@ Points of Interest are institutional footprint zones where traders look for entr
 
 ---
 
-## 5. Delivery Legs & Draw on Liquidity (DOL)
+## 6. Delivery Legs & Draw on Liquidity (DOL)
 These represent active algorithmic delivery targets and trend legs:
 
 | Visual Element | Line Style | Color | Meaning in Strategy |
@@ -73,7 +97,7 @@ These represent active algorithmic delivery targets and trend legs:
 
 ---
 
-## 6. Premium/Discount Zones (Range Shading)
+## 7. Premium/Discount Zones (Range Shading)
 The indicator draws horizontal shaded zones anchored between the latest confirmed external swing high and low to partition the active dealing range:
 
 | Visual Element | Object Type | Color / Style | Meaning in Strategy |
@@ -84,7 +108,7 @@ The indicator draws horizontal shaded zones anchored between the latest confirme
 
 ---
 
-## 7. Trading Session Shading (Vertical Columns)
+## 8. Trading Session Shading (Vertical Columns)
 To segment trading days and identify institutional volume windows, the indicator draws vertical shaded columns in the chart background:
 
 | Visual Element | GMT Hour Range | Color / Style | Meaning in Strategy |
@@ -97,10 +121,10 @@ To segment trading days and identify institutional volume windows, the indicator
 
 ---
 
-## 8. Dashboard Panel Reference Guide
+## 9. Dashboard Panel Reference Guide
 The floating status dashboard displays the real-time calculated state of the 11 core strategy engines. Text colors are dynamically updated to highlight bullish strength, bearish risk, or consolidation phases:
 
-### 8.1 Row-by-Row Definitions
+### 9.1 Row-by-Row Definitions
 
 | Row Label | Displayed Value Example | Strategy Meaning |
 |---|---|---|
@@ -122,7 +146,7 @@ The floating status dashboard displays the real-time calculated state of the 11 
 
 ---
 
-### 8.2 Color-Coding Key
+### 9.2 Color-Coding Key
 
 To help you scan the dashboard in split-seconds, the text color codes map directly to strategy logic:
 

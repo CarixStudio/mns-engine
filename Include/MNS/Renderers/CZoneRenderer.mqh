@@ -17,7 +17,6 @@
 #define __MNS_ZONE_RENDERER_MQH__
 
 #include "../MNSTypes.mqh"
-#include "../CSwingDetector.mqh"
 #include "../MNSStyle.mqh"
 #include "../MNSConfig.mqh"
 
@@ -66,35 +65,51 @@ public:
             ObjectDelete(0, EQ_OBJ_NAME);
     }
 
-    /// @brief Evaluates swings and draws/updates zone objects.
-    /// @param swingDetector Source CSwingDetector engine.
+    /// @brief Derives zone bounds from the active delivery state and draws/updates zone objects.
+    /// @param deliveryState The current active delivery structure state.
     /// @param time Chart datetime array (series order).
     /// @param ratesTotal Total chart bars.
-    void Draw(const CSwingDetector &swingDetector, const datetime &time[], int ratesTotal)
+    void Draw(const SDeliveryState &deliveryState, const datetime &time[], int ratesTotal)
     {
         if (!m_isInitialized)
             return;
 
         SEngineConfig cfg = CMNSConfig::GetActive();
 
-        // 1. Fetch latest external swing highs/lows
-        SSwingPoint extHigh = swingDetector.GetLatestExternalHigh();
-        SSwingPoint extLow = swingDetector.GetLatestExternalLow();
+        // Only draw when a delivery leg is active (or mitigated / objective reached)
+        bool isActive = (deliveryState.lifecycle == DELIVERY_ACTIVE ||
+                         deliveryState.lifecycle == DELIVERY_MITIGATED ||
+                         deliveryState.lifecycle == DELIVERY_OBJECTIVE_REACHED);
 
-        // 2. Validate swings exist and are confirmed
-        if (!extHigh.isConfirmed || !extLow.isConfirmed || ratesTotal < 2)
+        if (!isActive || ratesTotal < 2)
         {
             Reset();
             return;
         }
 
-        // 3. Calculate anchors
-        double highPrice = extHigh.price;
-        double lowPrice  = extLow.price;
-        double eqPrice   = (highPrice + lowPrice) / 2.0;
+        // Per MNS Strategy 3 spec:
+        //   Bullish: RangeLow = invalidationLevel (protected low), RangeHigh = currentObjective (DOL)
+        //   Bearish: RangeHigh = invalidationLevel (protected high), RangeLow = currentObjective (DOL)
+        // In both cases MathMax/Min resolve to the correct high/low.
+        double highPrice = MathMax(deliveryState.invalidationLevel, deliveryState.currentObjective);
+        double lowPrice  = MathMin(deliveryState.invalidationLevel, deliveryState.currentObjective);
+        double eqPrice   = lowPrice + (highPrice - lowPrice) * 0.50;
 
-        datetime startTime = MathMin(extHigh.time, extLow.time);
+        // Validate bounds are sensible
+        if (highPrice <= lowPrice || highPrice <= 0.0 || lowPrice <= 0.0)
+        {
+            Reset();
+            return;
+        }
+
+        // Zone spans from the delivery origin time to the current bar
+        datetime startTime = deliveryState.originTime;
         datetime endTime   = time[1]; // Anchored to last completed bar
+        if (startTime <= 0 || startTime >= endTime)
+        {
+            Reset();
+            return;
+        }
 
         // 4. Render/Update Premium Zone
         if (cfg.showZonePremium)

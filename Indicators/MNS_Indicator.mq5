@@ -86,6 +86,7 @@
 #include <MNS/Renderers/CDashboardRenderer.mqh>
 #include <MNS/Renderers/CZoneRenderer.mqh>
 #include <MNS/Renderers/CSessionRenderer.mqh>
+#include <MNS/Renderers/CExecutionRenderer.mqh>
 
 //+------------------------------------------------------------------+
 //| Indicator Input Parameters                                        |
@@ -200,6 +201,7 @@ CDeliveryRenderer        g_deliveryRenderer;
 CDashboardRenderer       g_dashboardRenderer;
 CZoneRenderer            g_zoneRenderer;
 CSessionRenderer         g_sessionRenderer;
+CExecutionRenderer       g_executionRenderer;
 
 //+------------------------------------------------------------------+
 //| Lifecycle State                                                   |
@@ -435,6 +437,11 @@ int OnInit()
         MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CSessionRenderer::Initialize() FAILED.");
         return INIT_FAILED;
     }
+    if (!g_executionRenderer.Initialize("MNS_EXEC_"))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CExecutionRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
     MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "Visual renderers initialized.");
 
     //--- All engines initialized successfully
@@ -483,6 +490,7 @@ void OnDeinit(const int reason)
     g_deliveryRenderer.Reset();
     g_zoneRenderer.Reset();
     g_sessionRenderer.Reset();
+    g_executionRenderer.Clear();
     if (reason == REASON_REMOVE)
     {
         g_dashboardRenderer.DeleteGlobalVariables();
@@ -527,6 +535,29 @@ void OnDeinit(const int reason)
 ///   → ObjectiveEngine → ConfirmationEngine → EntryEngine
 ///   (RiskEngine has no bar-driven Update — called on-demand only.)
 ///
+//+------------------------------------------------------------------+
+//| GetActivePositionDetails                                         |
+//+------------------------------------------------------------------+
+bool GetActivePositionDetails(string symbol, EConfirmationDirection &dir, double &entry, double &sl, double &tp, double &vol)
+{
+    int total = PositionsTotal();
+    for (int i = 0; i < total; i++)
+    {
+        string posSymbol = PositionGetSymbol(i);
+        if (posSymbol == symbol)
+        {
+            long type = PositionGetInteger(POSITION_TYPE);
+            dir = (type == POSITION_TYPE_BUY) ? CONFIRM_DIR_BULLISH : CONFIRM_DIR_BEARISH;
+            entry = PositionGetDouble(POSITION_PRICE_OPEN);
+            sl = PositionGetDouble(POSITION_SL);
+            tp = PositionGetDouble(POSITION_TP);
+            vol = PositionGetDouble(POSITION_VOLUME);
+            return true;
+        }
+    }
+    return false;
+}
+
 /// @return The number of bars calculated (standard MT5 convention).
 ///         Returning ratesTotal tells MT5 not to request a recalculation
 ///         unless new bars arrive.
@@ -564,30 +595,6 @@ int OnCalculate(const int      rates_total,
     ArraySetAsSeries(close, true);
     ArraySetAsSeries(time,  true);
 
-    //--- Detect whether this is a new bar or a tick within the same bar.
-    //    MT5 convention: if prev_calculated == rates_total, no new bar has
-    //    closed since the last OnCalculate() call.
-    //    We use a static variable to track the last known bar time.
-    static datetime s_lastBarTime = 0;
-    bool isNewBar = (time[0] != s_lastBarTime);
-
-    //--- Only perform engine updates on new bars to avoid redundant
-    //    recalculation on every tick. The engines update only confirmed
-    //    (closed) candles, so tick-level calls within the same bar carry
-    //    no new analytical information.
-    if (!isNewBar && prev_calculated > 0)
-        return rates_total;
-
-    //--- Update the last-bar timestamp tracker.
-    s_lastBarTime = time[0];
-
-    //--- Start main calculate performance profiling
-    MNS_ProfileStart("Total_Calculate");
-
-    //--- Log entry for debugging attach/recalculation issues (printed after setting time array series order)
-    Print(StringFormat("[DEBUG] [MNS_Indicator] OnCalculate: rates_total=%d, prev_calculated=%d, live_time=%s", 
-                       rates_total, prev_calculated, TimeToString(time[0], TIME_DATE|TIME_MINUTES|TIME_SECONDS)));
-
     //--- Compute the current ATR at bar index 1 (last closed bar).
     //    Index 0 is the forming candle — never used for ATR input.
     //    We need at least (ATR period + 1) closed bars.
@@ -595,7 +602,6 @@ int OnCalculate(const int      rates_total,
     int atrPeriod = cfg.atrPeriod; // default 14
     if (rates_total < atrPeriod + 2)
     {
-        MNS_ProfileStop("Total_Calculate");
         return 0;
     }
 
@@ -605,7 +611,6 @@ int OnCalculate(const int      rates_total,
         MNS_Log(MNS_LOG_WARN, MNS_INDICATOR_SOURCE,
             StringFormat("ATR calculation returned 0 at bar %d. Skipping engine update.",
                          rates_total));
-        MNS_ProfileStop("Total_Calculate");
         return rates_total;
     }
 
@@ -626,6 +631,22 @@ int OnCalculate(const int      rates_total,
     int prevCalc = ((prev_calculated > 0) && ((rates_total - prev_calculated) <= 1))
                    ? prev_calculated
                    : 0;
+
+    //--- Detect whether this is a new bar or a tick within the same bar.
+    static datetime s_lastBarTime = 0;
+    bool isNewBar = (time[0] != s_lastBarTime);
+
+    // Run heavy engine updates ONLY on a new bar to optimize performance
+    if (isNewBar || prev_calculated == 0)
+    {
+        s_lastBarTime = time[0];
+
+        //--- Start main calculate performance profiling
+        MNS_ProfileStart("Total_Calculate");
+
+        //--- Log entry for debugging attach/recalculation issues (printed after setting time array series order)
+        Print(StringFormat("[DEBUG] [MNS_Indicator] OnCalculate: rates_total=%d, prev_calculated=%d, live_time=%s", 
+                           rates_total, prev_calculated, TimeToString(time[0], TIME_DATE|TIME_MINUTES|TIME_SECONDS)));
 
     //+------------------------------------------------------------------+
     //| Engine Update Sequence — strict DAG order                        |
@@ -719,8 +740,9 @@ int OnCalculate(const int      rates_total,
     //     by the EA or the Stage 5 dashboard when a signal is active.
     //     No call is made here.
 
-    MNS_ProfileStop("Core_Engine_Updates");
-    MNS_ProfileStop("Total_Calculate");
+        MNS_ProfileStop("Core_Engine_Updates");
+        MNS_ProfileStop("Total_Calculate");
+    }
 
     //+------------------------------------------------------------------+
     //| Visual Renderers execution (Stage 2)                              |
@@ -748,12 +770,72 @@ int OnCalculate(const int      rates_total,
     MNS_ProfileStop("Render_Delivery");
 
     MNS_ProfileStart("Render_Zones");
-    g_zoneRenderer.Draw(g_swings, time, rates_total);
+    g_zoneRenderer.Draw(g_delivery.GetState(), time, rates_total);
     MNS_ProfileStop("Render_Zones");
 
     MNS_ProfileStart("Render_Sessions");
     g_sessionRenderer.Draw(time, limitBars);
     MNS_ProfileStop("Render_Sessions");
+
+    MNS_ProfileStart("Render_Execution");
+    EConfirmationDirection posDir = CONFIRM_DIR_NEUTRAL;
+    double posEntry = 0.0, posSl = 0.0, posTp = 0.0, posVol = 0.0;
+
+    if (g_entry.HasActiveSignal())
+    {
+        SEntrySignal activeSig = g_entry.GetActiveSignal();
+        SRiskSizingResult riskResult = g_risk.SizePreTrade(activeSig.direction, 
+                                                           activeSig.entryPrice, 
+                                                           activeSig.stopLoss, 
+                                                           activeSig.takeProfit, 
+                                                           currentAtr, 
+                                                           cfg.desiredRiskPercent, 
+                                                           AccountInfoDouble(ACCOUNT_EQUITY), 
+                                                           _Symbol);
+        double volVal = riskResult.approved ? riskResult.volume : 0.0;
+        double riskVal = riskResult.approved ? riskResult.riskAmount : 0.0;
+        double rewardVal = riskResult.approved ? (riskResult.riskAmount * riskResult.expectedRr) : 0.0;
+        
+        g_executionRenderer.Draw(activeSig.direction, 
+                                 activeSig.entryPrice, 
+                                 activeSig.stopLoss, 
+                                 activeSig.takeProfit, 
+                                 time, 
+                                 currentAtr, 
+                                 cfg.executionProjectedBars,
+                                 volVal,
+                                 riskVal,
+                                 rewardVal);
+    }
+    else if (GetActivePositionDetails(_Symbol, posDir, posEntry, posSl, posTp, posVol))
+    {
+        double riskDist = MathAbs(posEntry - posSl);
+        double rewardDist = MathAbs(posTp - posEntry);
+        double tickSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+        double tickValue = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+        double pointSize = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+        if (tickSize <= 0.0) tickSize = pointSize;
+        if (tickValue <= 0.0) tickValue = 1.0;
+        
+        double cashRisk = (tickSize > 0.0 && posSl > 0.0) ? ((riskDist / tickSize) * tickValue * posVol) : 0.0;
+        double cashReward = (tickSize > 0.0 && posTp > 0.0) ? ((rewardDist / tickSize) * tickValue * posVol) : 0.0;
+        
+        g_executionRenderer.Draw(posDir, 
+                                 posEntry, 
+                                 (posSl > 0.0 ? posSl : posEntry - 100 * _Point), 
+                                 (posTp > 0.0 ? posTp : posEntry + 100 * _Point), 
+                                 time, 
+                                 currentAtr, 
+                                 cfg.executionProjectedBars,
+                                 posVol,
+                                 cashRisk,
+                                 cashReward);
+    }
+    else
+    {
+        g_executionRenderer.Clear();
+    }
+    MNS_ProfileStop("Render_Execution");
 
     MNS_ProfileStart("Render_Dashboard");
     // Check showDashboard flag before drawing

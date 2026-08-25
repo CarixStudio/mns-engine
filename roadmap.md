@@ -108,7 +108,7 @@ We have paused development of the strategy modules due to outstanding client amb
 ### Core Infrastructure Modules
 - [x] **INF-000 — Core Module** (`MNSCore.mqh`) — Success/error codes, global constants, and assertions.
 - [x] **INF-001 — Logging System** (`MNSLogger.mqh`) — Level-filtered log outputs and target routing.
-- [x] **INF-002 — Utility Library** (`MNSUtils.mqh`) — Pure math operations, session hours, and array helper functions.
+- [x] **INF-002 — Utility Library** (`MNSUtils.mqht`) — Pure math operations, session hours, and array helper functions.
 - [x] **INF-003 — ATR Helper** (`MNSVolatility.mqh`) — Volatility calculations operating directly on price arrays.
 - [x] **INF-004 — Configuration System** (`MNSConfig.mqh`) — Settings profiles and input validation boundaries.
 - [x] **INF-005 — Serialization** (`MNSSerializer.mqh`) — Standard interfaces for object archiving to disk.
@@ -268,6 +268,24 @@ First time the engine outputs are visible on a chart. Consolidates all visualiza
 EA Integration (CEAIntegration)
 
 Expert Advisor integration, order execution, position controls, and interactive EA trading dashboard.
+
+### Progress Table
+
+| Stage | Name | Status | Summary |
+| :--- | :--- | :--- | :--- |
+| Stage 1 | Execution Visuals (Risk/Reward Projection) | ⬜ Pending | Shaded risk/reward boxes, entry/SL/TP levels, and pips/R:R labels on active signal or trade. | 
+| Stage 2 | EA Shell & Coordinator | ⬜ Pending | Core Expert Advisor file (`MNS_EA.mq5`) with MT5 event dispatchers and lifecycle coordination. |
+| Stage 3 | Signal Querying & Execution Pipeline | ⬜ Pending | Order routing and dispatch (market/pending) connected to the entry engine triggers. |
+| Stage 4 | Active Position Management & Trailing | ⬜ Pending | Trailing stops, break-even updates, partial exits, and session deactivations. |
+| Stage 5 | EA Dashboard & On-Chart Controls | ⬜ Pending | On-chart panel showing account metrics, open trades, and manual EA trading controls. |
+| Stage 6 | Backtesting & Parameter Optimization | ⬜ Pending | Historical performance testing in Strategy Tester with centralized settings optimization. |
+
+### Stage 1 Deliverables
+- `Include/MNS/MNSStyle.mqh` — Updated with color and style tokens for execution visuals.
+- `Include/MNS/Renderers/CExecutionRenderer.mqh` — [NEW] Handles drawing the risk/reward projection box on signals/trades.
+- `Indicators/MNS_Indicator.mq5` — Updated to render execution visuals when a signal is active.
+- `docs/modules/014_STAGE_01_DESIGN.md` — [NEW] Detailed design specifications for execution visuals.
+- `docs/ai/prompts/PROMPT_014_Stage1_ExecutionVisuals.md` — [NEW] AI implementation prompt.
 
 ---
 

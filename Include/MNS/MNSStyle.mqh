@@ -39,8 +39,8 @@ struct SIndicatorStyle {
     int fontSizeLabel; ///< Font size for text labels (default 9)
 
     //--- Symbol Codes (Wingdings)
-    int codeArrowHigh; ///< Wingdings code for high swing (default 233 - Up Arrow)
-    int codeArrowLow;  ///< Wingdings code for low swing (default 234 - Down Arrow)
+    int codeArrowHigh; ///< Wingdings code for high swing (234 - Down Arrow, points INTO the high from above)
+    int codeArrowLow;  ///< Wingdings code for low swing (233 - Up Arrow, points INTO the low from below)
 
     //--- Line Styles
     ENUM_LINE_STYLE styleBOS;   ///< Line style for BOS (STYLE_DASH)
@@ -98,6 +98,13 @@ struct SIndicatorStyle {
     color colorSessionNY;         ///< NY-only background
     color colorSessionOverlap;    ///< London/NY overlap background
 
+    //--- Execution Visuals Styling
+    color colorExecutionEntry;    ///< Entry level color for execution visuals (clrGold)
+    color colorExecutionTPBg;     ///< TP background fill color (C'0x0C, 0x22, 0x11')
+    color colorExecutionSLBg;     ///< SL background fill color (C'0x26, 0x0C, 0x0C')
+    color colorExecutionTPLine;   ///< TP boundary line color (clrLime)
+    color colorExecutionSLLine;   ///< SL boundary line color (clrRed)
+
     /// @brief Resets the style structure to safe default premium theme values.
     void Reset() {
         // Default premium theme colors (matching UI/UX spec: Lime/Red/Orange/Gray)
@@ -122,8 +129,8 @@ struct SIndicatorStyle {
         fontSizeLabel = 9;
 
         // Arrow codes (Wingdings: 233 is Up Arrow, 234 is Down Arrow)
-        codeArrowHigh = 233;
-        codeArrowLow = 234;
+        codeArrowHigh = 234; // Down arrow — placed above the candle, pointing INTO the swing high
+        codeArrowLow  = 233; // Up arrow  — placed below the candle, pointing INTO the swing low
 
         // Line styles
         styleBOS = STYLE_DASH;
@@ -180,6 +187,13 @@ struct SIndicatorStyle {
         colorSessionLondon  = C'0x05, 0x1F, 0x05'; // Dark Green-Gray
         colorSessionNY      = C'0x1F, 0x14, 0x05'; // Dark Orange-Gray
         colorSessionOverlap = C'0x1F, 0x05, 0x1F'; // Dark Purple-Gray
+
+        // Execution Visuals Defaults
+        colorExecutionEntry  = clrGold;
+        colorExecutionTPBg   = C'0x0C, 0x22, 0x11';
+        colorExecutionSLBg   = C'0x26, 0x0C, 0x0C';
+        colorExecutionTPLine = clrLime;
+        colorExecutionSLLine = clrRed;
     }
 };
 

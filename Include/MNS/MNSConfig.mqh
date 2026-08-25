@@ -70,6 +70,9 @@ struct SEngineConfig
     bool   showZoneEquilibrium;       // Enable equilibrium line drawing
     bool   showSessions;              // Enable session shading bands
     int    maxRenderedSessions;       // Max historical session shading blocks to render
+
+    //--- Stage 14 additions
+    int    executionProjectedBars;    // Number of projected future bars for execution visuals
 };
 
 //+------------------------------------------------------------------+
@@ -115,6 +118,9 @@ public:
         s_config.showZoneEquilibrium  = true;
         s_config.showSessions         = true;
         s_config.maxRenderedSessions  = 15;
+
+        //--- Stage 14 defaults
+        s_config.executionProjectedBars = 20;
     }
 
     /// @brief Returns a copy of the active engine configuration.
@@ -348,6 +354,15 @@ public:
             MNS_Assert(val >= 3 && val <= 60, "UpdateParameter: maxRenderedSessions must be [3..60]");
             if (val < 3 || val > 60) return false;
             s_config.maxRenderedSessions = val;
+            return true;
+        }
+        else if (name == "executionProjectedBars")
+        {
+            int val = (int)value;
+            MNS_Assert(val >= 5 && val <= 100, "UpdateParameter: executionProjectedBars must be [5..100]");
+            if (val < 5) val = 5;
+            if (val > 100) val = 100;
+            s_config.executionProjectedBars = val;
             return true;
         }
         

@@ -79,6 +79,10 @@ $IndicatorRelPath       = "Indicators\MNS_Indicator.mq5"
 $IndicatorPath          = Join-Path $ProjectRoot $IndicatorRelPath     # repo copy (source)
 $DeployedIndicator      = $null  # populated in Assert-Prerequisites from MT5 install path
 
+$IndicatorExecOnlyRelPath = "Indicators\MNS_Indicator_ExecutionOnly.mq5"
+$IndicatorExecOnlyPath    = Join-Path $ProjectRoot $IndicatorExecOnlyRelPath
+$DeployedIndicatorExecOnly = $null
+
 # MT5 writes EA Experts tab output (Print() calls) to:
 #   <terminal_data>\MQL5\Logs\YYYYMMDD.log
 # NOT to <terminal_data>\logs\ which is the system/network log.
@@ -264,6 +268,9 @@ function Assert-Prerequisites {
     $script:DeployedIndicator = Join-Path $firstInst.MQL5Dir $IndicatorRelPath
     Write-Log "Deploy target (Indicator)   : $($script:DeployedIndicator)"
 
+    $script:DeployedIndicatorExecOnly = Join-Path $firstInst.MQL5Dir $IndicatorExecOnlyRelPath
+    Write-Log "Deploy target (ExecOnly Ind) : $($script:DeployedIndicatorExecOnly)"
+
     # MetaEditor must be locatable (skip check if -SkipCompile).
     if (-not $SkipCompile) {
         $script:MetaEditorExe = Get-MetaEditorPath
@@ -436,6 +443,58 @@ function Invoke-CompileIndicator {
 
 }
 
+# -- Step 1c: Compile Execution-Only Indicator ---------------------------------
+
+function Invoke-CompileIndicatorExecOnly {
+    <#
+    .SYNOPSIS
+        Runs MetaEditor64.exe in CLI mode to compile MNS_Indicator_ExecutionOnly.mq5.
+        Compiles from the MT5 MQL5 Indicators path.
+        Exits with code 1 if compilation fails.
+    #>
+
+    Write-Banner "Step 1c - Compile Execution-Only Indicator"
+
+    $compilePath     = $script:DeployedIndicatorExecOnly
+    $compilerLogPath = [System.IO.Path]::ChangeExtension($compilePath, ".log")
+
+    if (-not (Test-Path $compilePath)) {
+        Exit-WithError "Deployed execution-only indicator not found: $compilePath`n  Run deploy.ps1 first."
+    }
+
+    Write-Log "Compiling: $compilePath"
+    Write-Host ""
+
+    $compileArgs = @(
+        "/compile:`"$compilePath`"",
+        "/log:`"$compilerLogPath`""
+    )
+
+    $process = Start-Process -FilePath $script:MetaEditorExe `
+                             -ArgumentList $compileArgs `
+                             -Wait -PassThru -NoNewWindow
+
+    # Always show compiler output so warnings are visible even on success.
+    $compilerOutput = ""
+    if (Test-Path $compilerLogPath) {
+        $compilerOutput = Get-Content $compilerLogPath -Raw
+        if ($compilerOutput) {
+            Write-Host "--- Compiler Output ---"
+            Write-Host $compilerOutput
+            Write-Host "-----------------------"
+            Write-Host ""
+        }
+    }
+
+    if ($compilerOutput -match "Result:\s+0 errors") {
+        Write-Log "Execution-Only Indicator compilation succeeded (0 errors, 0 warnings)." "SUCCESS"
+        return
+    }
+
+    Exit-WithError "Execution-Only Indicator compilation FAILED. Check output above. Log: $compilerLogPath"
+
+}
+
 # -- Step 2: Wait for Test Harness ---------------------------------------------
 
 function Invoke-WaitForTest {
@@ -559,6 +618,7 @@ function Write-BuildReport {
         Write-Host " Compiled:"
         Write-Host "   [OK] MNS_TestHarness" -ForegroundColor Green
         Write-Host "   [OK] MNS_Indicator"   -ForegroundColor Green
+        Write-Host "   [OK] MNS_Indicator_ExecutionOnly" -ForegroundColor Green
         Write-Host ""
     }
 
@@ -644,6 +704,7 @@ function Main {
     if (-not $SkipCompile) {
         Invoke-Compile
         Invoke-CompileIndicator
+        Invoke-CompileIndicatorExecOnly
     }
     else {
         Write-Log "Compilation skipped (-SkipCompile)." "WARN"
