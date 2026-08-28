@@ -50,6 +50,7 @@
 // Visual Renderers layer
 #include <MNS/MNSStyle.mqh>
 #include <MNS/Renderers/CExecutionRenderer.mqh>
+#include <MNS/Renderers/CDashboardRenderer.mqh>
 
 //+------------------------------------------------------------------+
 //| Indicator Input Parameters                                        |
@@ -66,7 +67,7 @@ input int    InpMaxRenderedBreaks = 20;
 input int    InpMaxRenderedPools = 20;
 input int    InpMaxRenderedPOIs = 20;
 input int    InpMaxHistoryBars   = 1000;
-input bool   InpShowDashboard    = false;
+input bool   InpShowDashboard    = true;
 input int    InpDashboardX       = 20;
 input int    InpDashboardY       = 20;
 input int    InpDashboardWidth   = 250;
@@ -96,6 +97,7 @@ CRiskEngine              g_risk;
 
 //--- Renderer Object Instances
 CExecutionRenderer       g_executionRenderer;
+CDashboardRenderer       g_dashboard;
 
 //+------------------------------------------------------------------+
 //| Lifecycle State                                                   |
@@ -144,7 +146,7 @@ int OnInit()
     CMNSConfig::UpdateParameter("maxRenderedBreaks", (double)InpMaxRenderedBreaks);
     CMNSConfig::UpdateParameter("maxRenderedPools", (double)InpMaxRenderedPools);
     CMNSConfig::UpdateParameter("maxRenderedPOIs", (double)InpMaxRenderedPOIs);
-    CMNSConfig::UpdateParameter("showDashboard", 0.0); // Always false for Exec Only
+    CMNSConfig::UpdateParameter("showDashboard", InpShowDashboard ? 1.0 : 0.0);
     CMNSConfig::UpdateParameter("showZonePremium", 0.0);
     CMNSConfig::UpdateParameter("showZoneDiscount", 0.0);
     CMNSConfig::UpdateParameter("showZoneEquilibrium", 0.0);
@@ -174,8 +176,16 @@ int OnInit()
         return INIT_FAILED;
     }
 
+    SIndicatorStyle style;
+    style.Reset();
+    if (!g_dashboard.Initialize(style, InpShowDashboard, InpDashboardX, InpDashboardY, InpDashboardWidth, true))
+    {
+        MNS_Log(MNS_LOG_FATAL, MNS_INDICATOR_SOURCE, "CDashboardRenderer::Initialize() FAILED.");
+        return INIT_FAILED;
+    }
+
     g_isReady = true;
-    MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "All engines and execution renderer initialized.");
+    MNS_Log(MNS_LOG_INFO, MNS_INDICATOR_SOURCE, "All engines and visual renderers initialized.");
     return INIT_SUCCEEDED;
 }
 
@@ -200,6 +210,8 @@ void OnDeinit(const int reason)
 
     //--- Clear visuals
     g_executionRenderer.Clear();
+    g_dashboard.Reset();
+    g_dashboard.DeleteGlobalVariables();
 
     CMNSLogger::Close();
     g_isReady = false;
@@ -343,13 +355,17 @@ int OnCalculate(const int      rates_total,
         g_executionRenderer.Clear();
     }
 
+    // Draw the simple dashboard HUD
+    g_dashboard.Draw(g_poi, g_delivery, g_objective, g_swings, g_structure, g_breaks, g_orderFlow, g_liquidity, g_confirmation, g_entry, g_risk, time, close, rates_total, TimeCurrent());
+
     ChartRedraw(0);
     return rates_total;
 }
 
 //+------------------------------------------------------------------+
-//| OnChartEvent — Stubbed                                           |
+//| OnChartEvent — Forward interactive clicks/drags to dashboard     |
 //+------------------------------------------------------------------+
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
 {
+    g_dashboard.HandleChartEvent(id, lparam, dparam, sparam);
 }

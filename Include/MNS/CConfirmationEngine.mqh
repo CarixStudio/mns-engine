@@ -61,6 +61,7 @@ class CConfirmationEngine {
 
     double CalculateConfidence(const CStructureEngine& structureEngine,
                                const CPOIEngine& poiEngine,
+                               const CDeliveryStructureEngine& deliveryEngine,
                                const double& high[],
                                const double& low[],
                                const double& close[],
@@ -367,7 +368,7 @@ bool CConfirmationEngine::Update(const CSwingDetector& swingDetector,
                 m_state.invalidationLevel = m_poiInvalidationLevel;
             }
 
-            m_state.confidenceScore = CalculateConfidence(structureEngine, poiEngine, high, low, close, open, time, ratesTotal, currentAtr, dir);
+            m_state.confidenceScore = CalculateConfidence(structureEngine, poiEngine, deliveryEngine, high, low, close, open, time, ratesTotal, currentAtr, dir);
             stateChanged = true;
         }
     }
@@ -472,6 +473,7 @@ bool CConfirmationEngine::EvaluateStructuralTrigger(const CBreakDetector& breakD
 //+------------------------------------------------------------------+
 double CConfirmationEngine::CalculateConfidence(const CStructureEngine& structureEngine,
                                                 const CPOIEngine& poiEngine,
+                                                const CDeliveryStructureEngine& deliveryEngine,
                                                 const double& high[],
                                                 const double& low[],
                                                 const double& close[],
@@ -508,16 +510,22 @@ double CConfirmationEngine::CalculateConfidence(const CStructureEngine& structur
     }
 
     // 2. Premium / Discount (+10 pts)
-    SSwingPoint lastHigh = structureEngine.GetState().lastSwingHigh;
-    SSwingPoint lastLow = structureEngine.GetState().lastSwingLow;
-    if (lastHigh.isConfirmed && lastLow.isConfirmed && lastHigh.price > lastLow.price) {
-        double range = lastHigh.price - lastLow.price;
-        double currentPrice = close[1];
-        double pct = (currentPrice - lastLow.price) / range;
-        if (dir == CONFIRM_DIR_BULLISH && pct < 0.50) {
-            score += 10.0;
-        } else if (dir == CONFIRM_DIR_BEARISH && pct > 0.50) {
-            score += 10.0;
+    SDeliveryState delState = deliveryEngine.GetState();
+    bool isDelActive = (delState.lifecycle == DELIVERY_ACTIVE ||
+                        delState.lifecycle == DELIVERY_MITIGATED ||
+                        delState.lifecycle == DELIVERY_OBJECTIVE_REACHED);
+    if (isDelActive && delState.invalidationLevel > 0.0 && delState.currentObjective > 0.0) {
+        double lowPrice = MathMin(delState.invalidationLevel, delState.currentObjective);
+        double highPrice = MathMax(delState.invalidationLevel, delState.currentObjective);
+        double range = highPrice - lowPrice;
+        if (range > 0.0) {
+            double currentPrice = close[1];
+            double pct = (currentPrice - lowPrice) / range;
+            if (dir == CONFIRM_DIR_BULLISH && pct < 0.50) {
+                score += 10.0;
+            } else if (dir == CONFIRM_DIR_BEARISH && pct > 0.50) {
+                score += 10.0;
+            }
         }
     }
 

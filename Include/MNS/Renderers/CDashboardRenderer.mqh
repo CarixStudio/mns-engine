@@ -48,6 +48,7 @@ private:
     bool            m_isDragging;      ///< True if currently dragging
     int             m_dragDx;          ///< Drag X offset from mouse down
     int             m_dragDy;          ///< Drag Y offset from mouse down
+    bool            m_essentialsOnly;  ///< True to hide intermediate narrative rows
 
     /// @brief Resolves a collision-safe object name by appending ChartID.
     string GetObjName(string baseName) const
@@ -208,24 +209,24 @@ private:
         SetObjectVisibility("MNS_DASH_VAL_SYMBOL", true);
         SetObjectVisibility("MNS_DASH_LBL_TREND", true);
         SetObjectVisibility("MNS_DASH_VAL_TREND", true);
-        SetObjectVisibility("MNS_DASH_LBL_PHASE", true);
-        SetObjectVisibility("MNS_DASH_VAL_PHASE", true);
-        SetObjectVisibility("MNS_DASH_LBL_STRUCTURE", true);
-        SetObjectVisibility("MNS_DASH_VAL_STRUCTURE", true);
-        SetObjectVisibility("MNS_DASH_LBL_BOS", true);
-        SetObjectVisibility("MNS_DASH_VAL_BOS", true);
-        SetObjectVisibility("MNS_DASH_LBL_CHOCH", true);
-        SetObjectVisibility("MNS_DASH_VAL_CHOCH", true);
-        SetObjectVisibility("MNS_DASH_LBL_BIAS", true);
-        SetObjectVisibility("MNS_DASH_VAL_BIAS", true);
+        SetObjectVisibility("MNS_DASH_LBL_PHASE", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_VAL_PHASE", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_LBL_STRUCTURE", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_VAL_STRUCTURE", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_LBL_BOS", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_VAL_BOS", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_LBL_CHOCH", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_VAL_CHOCH", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_LBL_BIAS", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_VAL_BIAS", !m_essentialsOnly);
         SetObjectVisibility("MNS_DASH_LBL_DOL", true);
         SetObjectVisibility("MNS_DASH_VAL_DOL", true);
         SetObjectVisibility("MNS_DASH_LBL_POI", true);
         SetObjectVisibility("MNS_DASH_VAL_POI", true);
-        SetObjectVisibility("MNS_DASH_LBL_ZONE", true);
-        SetObjectVisibility("MNS_DASH_VAL_ZONE", true);
-        SetObjectVisibility("MNS_DASH_LBL_SESSION", true);
-        SetObjectVisibility("MNS_DASH_VAL_SESSION", true);
+        SetObjectVisibility("MNS_DASH_LBL_ZONE", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_VAL_ZONE", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_LBL_SESSION", !m_essentialsOnly);
+        SetObjectVisibility("MNS_DASH_VAL_SESSION", !m_essentialsOnly);
         SetObjectVisibility("MNS_DASH_LBL_CONFIRMATION", true);
         SetObjectVisibility("MNS_DASH_VAL_CONFIRMATION", true);
         SetObjectVisibility("MNS_DASH_LBL_ENTRY", true);
@@ -297,7 +298,8 @@ public:
           m_isVisible(true),
           m_isDragging(false),
           m_dragDx(0),
-          m_dragDy(0)
+          m_dragDy(0),
+          m_essentialsOnly(false)
     {
         m_style.Reset();
     }
@@ -309,12 +311,13 @@ public:
     }
 
     /// @brief Initializes the renderer with the style structure and layout inputs.
-    bool Initialize(const SIndicatorStyle &style, bool showDashboard, int x, int y, int width)
+    bool Initialize(const SIndicatorStyle &style, bool showDashboard, int x, int y, int width, bool essentialsOnly = false)
     {
         SEngineConfig cfg = CMNSConfig::GetActive();
         m_style = style;
         m_showDashboard = cfg.showDashboard;
         m_width = (cfg.dashboardWidth > 100) ? cfg.dashboardWidth : 250;
+        m_essentialsOnly = essentialsOnly;
         m_isInitialized = true;
         
         m_isLocked = false;
@@ -419,8 +422,8 @@ public:
     {
         if (m_isCollapsed)
             return 22 + m_style.paddingDashboard;
-        // Header (22) + padding top (8) + 15 rows * 16 (240) + padding before button (8) + button height (18) + padding bottom (8) = 296 px
-        return 22 + m_style.paddingDashboard + 15 * m_style.rowHeightDashboard + m_style.paddingDashboard + 18 + m_style.paddingDashboard;
+        int numRows = m_essentialsOnly ? 8 : 15;
+        return 22 + m_style.paddingDashboard + numRows * m_style.rowHeightDashboard + m_style.paddingDashboard + 18 + m_style.paddingDashboard;
     }
 
     /// @brief Ensures all layout objects are created and formatted.
@@ -540,25 +543,43 @@ public:
         {
             int startY = m_yOffset + 22 + m_style.paddingDashboard;
             
-            SetRowPosition("SYMBOL", startY + 0 * m_style.rowHeightDashboard);
-            SetRowPosition("TREND", startY + 1 * m_style.rowHeightDashboard);
-            SetRowPosition("PHASE", startY + 2 * m_style.rowHeightDashboard);
-            SetRowPosition("STRUCTURE", startY + 3 * m_style.rowHeightDashboard);
-            SetRowPosition("BOS", startY + 4 * m_style.rowHeightDashboard);
-            SetRowPosition("CHOCH", startY + 5 * m_style.rowHeightDashboard);
-            SetRowPosition("BIAS", startY + 6 * m_style.rowHeightDashboard);
-            SetRowPosition("DOL", startY + 7 * m_style.rowHeightDashboard);
-            SetRowPosition("POI", startY + 8 * m_style.rowHeightDashboard);
-            SetRowPosition("ZONE", startY + 9 * m_style.rowHeightDashboard);
-            SetRowPosition("SESSION", startY + 10 * m_style.rowHeightDashboard);
-            SetRowPosition("CONFIRMATION", startY + 11 * m_style.rowHeightDashboard);
-            SetRowPosition("ENTRY", startY + 12 * m_style.rowHeightDashboard);
-            SetRowPosition("ENTRY_PRICE", startY + 13 * m_style.rowHeightDashboard);
-            SetRowPosition("SL", startY + 14 * m_style.rowHeightDashboard);
+            if (m_essentialsOnly)
+            {
+                SetRowPosition("SYMBOL", startY + 0 * m_style.rowHeightDashboard);
+                SetRowPosition("TREND", startY + 1 * m_style.rowHeightDashboard);
+                SetRowPosition("DOL", startY + 2 * m_style.rowHeightDashboard);
+                SetRowPosition("POI", startY + 3 * m_style.rowHeightDashboard);
+                SetRowPosition("CONFIRMATION", startY + 4 * m_style.rowHeightDashboard);
+                SetRowPosition("ENTRY", startY + 5 * m_style.rowHeightDashboard);
+                SetRowPosition("ENTRY_PRICE", startY + 6 * m_style.rowHeightDashboard);
+                SetRowPosition("SL", startY + 7 * m_style.rowHeightDashboard);
 
-            // Reset Button
-            ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
-            ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, m_yOffset + 22 + 15 * m_style.rowHeightDashboard + m_style.paddingDashboard * 2);
+                // Reset Button
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, m_yOffset + 22 + 8 * m_style.rowHeightDashboard + m_style.paddingDashboard * 2);
+            }
+            else
+            {
+                SetRowPosition("SYMBOL", startY + 0 * m_style.rowHeightDashboard);
+                SetRowPosition("TREND", startY + 1 * m_style.rowHeightDashboard);
+                SetRowPosition("PHASE", startY + 2 * m_style.rowHeightDashboard);
+                SetRowPosition("STRUCTURE", startY + 3 * m_style.rowHeightDashboard);
+                SetRowPosition("BOS", startY + 4 * m_style.rowHeightDashboard);
+                SetRowPosition("CHOCH", startY + 5 * m_style.rowHeightDashboard);
+                SetRowPosition("BIAS", startY + 6 * m_style.rowHeightDashboard);
+                SetRowPosition("DOL", startY + 7 * m_style.rowHeightDashboard);
+                SetRowPosition("POI", startY + 8 * m_style.rowHeightDashboard);
+                SetRowPosition("ZONE", startY + 9 * m_style.rowHeightDashboard);
+                SetRowPosition("SESSION", startY + 10 * m_style.rowHeightDashboard);
+                SetRowPosition("CONFIRMATION", startY + 11 * m_style.rowHeightDashboard);
+                SetRowPosition("ENTRY", startY + 12 * m_style.rowHeightDashboard);
+                SetRowPosition("ENTRY_PRICE", startY + 13 * m_style.rowHeightDashboard);
+                SetRowPosition("SL", startY + 14 * m_style.rowHeightDashboard);
+
+                // Reset Button
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, m_yOffset + 22 + 15 * m_style.rowHeightDashboard + m_style.paddingDashboard * 2);
+            }
         }
     }
 
@@ -1070,10 +1091,10 @@ public:
         // DR Zone
         string zoneVal = "None";
         color  zoneCol = clrLightGray;
-        double eq = poiEngine.GetEquilibrium(swingDetector);
+        double eq = poiEngine.GetEquilibrium(deliveryEngine);
         if (eq != 0.0 && eq != DBL_MAX)
         {
-            EDealingRangeZone zone = poiEngine.GetDealingRangeZone(currentPrice, swingDetector);
+            EDealingRangeZone zone = poiEngine.GetDealingRangeZone(currentPrice, deliveryEngine);
             switch (zone)
             {
                 case ZONE_PREMIUM:     zoneVal = "Premium"; zoneCol = clrRed; break;

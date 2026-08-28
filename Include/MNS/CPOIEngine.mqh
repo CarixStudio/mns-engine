@@ -114,15 +114,15 @@ public:
     bool                GetNearestBearishPOI(double currentPrice, SPoIDefinition &outPoi) const;
 
     /// @brief Returns the Equilibrium price level of the dealing range.
-    /// @param swingDetector Confirmed swings database.
+    /// @param deliveryEngine Active delivery structure engine.
     /// @return Equilibrium price level, or 0.0 if not established.
-    double              GetEquilibrium(const CSwingDetector &swingDetector) const;
+    double              GetEquilibrium(const CDeliveryStructureEngine &deliveryEngine) const;
 
     /// @brief Classifies a price level as Premium, Discount, or Equilibrium.
     /// @param price The price level to evaluate.
-    /// @param swingDetector Confirmed swings database.
+    /// @param deliveryEngine Active delivery structure engine.
     /// @return Zone classification (ZONE_EQUILIBRIUM, ZONE_PREMIUM, ZONE_DISCOUNT).
-    EDealingRangeZone   GetDealingRangeZone(double price, const CSwingDetector &swingDetector) const;
+    EDealingRangeZone   GetDealingRangeZone(double price, const CDeliveryStructureEngine &deliveryEngine) const;
 };
 
 //+------------------------------------------------------------------+
@@ -947,7 +947,7 @@ void CPOIEngine::RankPOIs(const CSwingDetector &swingDetector,
             score += 2.0; // Minor presence
 
         // 8. Premium/Discount Location (5 pts)
-        EDealingRangeZone zone = GetDealingRangeZone((m_pois[k].upperPrice + m_pois[k].lowerPrice) / 2.0, swingDetector);
+        EDealingRangeZone zone = GetDealingRangeZone((m_pois[k].upperPrice + m_pois[k].lowerPrice) / 2.0, deliveryEngine);
         if ((isBullish && zone == ZONE_DISCOUNT) || (!isBullish && zone == ZONE_PREMIUM))
         {
             score += 5.0;
@@ -1163,24 +1163,26 @@ bool CPOIEngine::GetNearestBearishPOI(double currentPrice, SPoIDefinition &outPo
 //+------------------------------------------------------------------+
 //| Returns the Equilibrium price of the dealing range               |
 //+------------------------------------------------------------------+
-double CPOIEngine::GetEquilibrium(const CSwingDetector &swingDetector) const
+double CPOIEngine::GetEquilibrium(const CDeliveryStructureEngine &deliveryEngine) const
 {
-    SSwingPoint extHigh = swingDetector.GetLatestExternalHigh();
-    SSwingPoint extLow = swingDetector.GetLatestExternalLow();
+    SDeliveryState delState = deliveryEngine.GetState();
+    bool isActive = (delState.lifecycle == DELIVERY_ACTIVE ||
+                     delState.lifecycle == DELIVERY_MITIGATED ||
+                     delState.lifecycle == DELIVERY_OBJECTIVE_REACHED);
+    if (!isActive || delState.invalidationLevel <= 0.0 || delState.currentObjective <= 0.0)
+        return 0.0;
 
-    if (extHigh.isConfirmed && extLow.isConfirmed)
-    {
-        return (extHigh.price + extLow.price) / 2.0;
-    }
-    return 0.0;
+    double highPrice = MathMax(delState.invalidationLevel, delState.currentObjective);
+    double lowPrice = MathMin(delState.invalidationLevel, delState.currentObjective);
+    return lowPrice + (highPrice - lowPrice) * 0.50;
 }
 
 //+------------------------------------------------------------------+
 //| Classifies price relative to Premium/Discount dealing range      |
 //+------------------------------------------------------------------+
-EDealingRangeZone CPOIEngine::GetDealingRangeZone(double price, const CSwingDetector &swingDetector) const
+EDealingRangeZone CPOIEngine::GetDealingRangeZone(double price, const CDeliveryStructureEngine &deliveryEngine) const
 {
-    double eq = GetEquilibrium(swingDetector);
+    double eq = GetEquilibrium(deliveryEngine);
     if (eq == 0.0)
         return ZONE_EQUILIBRIUM;
 

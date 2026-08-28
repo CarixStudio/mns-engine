@@ -159,3 +159,23 @@ To help you scan the dashboard in split-seconds, the text color codes map direct
 *   **White / Light Gray**: Neutral, balanced, or pending states.
     *   *Examples*: `DR Zone: Equilibrium` (fair value), `Session: Tokyo`, `Entry: None`.
 
+---
+
+## 10. Execution Visuals (TradingView-Style Risk/Reward Projections)
+When running the **Execution-Only Indicator** (`MNS_Indicator_ExecutionOnly.mq5`) or when a signal is active on the standard indicator, a localized risk/reward projection box is drawn in the empty future chart space (projected 20 bars to the right of the current price bar). This visual is only shown when a signal is active or when a trade position is actively open:
+
+| Visual Element | MQL5 Object Type | Color | Meaning / Style |
+|---|---|---|---|
+| **Entry Level Line** | `OBJ_TREND` | **Gold** (`clrGold`) | Solid line showing the exact order entry price trigger. |
+| **Take Profit (TP) Line** | `OBJ_TREND` | **Lime** (`clrLime`) | Solid boundary line showing the target exit price. |
+| **Stop Loss (SL) Line** | `OBJ_TREND` | **Crimson** (`clrCrimson`) | Solid boundary line showing the invalidation/stop out price. |
+| **Take Profit (Reward) Box** | `OBJ_RECTANGLE` | **Deep Emerald** (`C'0x0C, 0x22, 0x11'`) | Shaded background block representing potential profit. |
+| **Stop Loss (Risk) Box** | `OBJ_RECTANGLE` | **Deep Maroon** (`C'0x26, 0x0C, 0x0C'`) | Shaded background block representing active risk. |
+
+### 10.1 Label Reference (Right Boundary)
+Labels are rendered at the right-hand edge of the projection box, updating dynamically in real time:
+*   **TP Label**: Displays the TP price, distance in pips, and expected risk-to-reward ratio (e.g. `TP: 1.25600 (+40.0 pips / 2.5R)`).
+*   **Entry Label**: Displays the trigger/filled price (e.g. `ENTRY: 1.25200`).
+*   **SL Label**: Displays the stop loss price and total risk distance in pips (e.g. `SL: 1.25040 (-16.0 pips)`).
+
+
