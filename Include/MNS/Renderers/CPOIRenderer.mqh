@@ -52,6 +52,29 @@ private:
         return StringFormat("MNS_POI_%s_%d", typeStr, id);
     }
 
+    /// @brief Generates the label object name for a POI zone.
+    string GetLabelName(int id, EPoIType type) const
+    {
+        return StringFormat("MNS_POILbl_%d_%d", (int)type, id);
+    }
+
+    /// @brief Converts POI type to short display string.
+    string GetPoiTypeLabel(EPoIType type) const
+    {
+        switch (type)
+        {
+            case POI_OB_BULLISH:         return "BULLISH OB";
+            case POI_OB_BEARISH:         return "BEARISH OB";
+            case POI_BREAKER_BULLISH:    return "BULLISH BRK";
+            case POI_BREAKER_BEARISH:    return "BEARISH BRK";
+            case POI_MITIGATION_BULLISH: return "BULLISH MB";
+            case POI_MITIGATION_BEARISH: return "BEARISH MB";
+            case POI_FVG_BULLISH:        return "BULLISH FVG";
+            case POI_FVG_BEARISH:        return "BEARISH FVG";
+            default:                     return "POI";
+        }
+    }
+
     /// @brief Checks if a POI is active or mitigated (and thus renderable).
     /// @param poi The POI definition.
     /// @return True if the POI should be drawn.
@@ -107,6 +130,10 @@ private:
             borderStyle = STYLE_DOT; // Mitigated blocks change to dotted borders
         }
 
+        // 3. Visual weight: active POI gets border width 2; mitigated gets width 1 (reduced)
+        bool isActive = (poi.lifecycle == POI_STATE_ACTIVE);
+        int borderWidth = isActive ? 2 : 1;
+
         // Create or update the rectangle
         if (ObjectFind(0, name) < 0)
         {
@@ -124,13 +151,44 @@ private:
 
         // Set visual properties
         ObjectSetInteger(0, name, OBJPROP_COLOR, zoneColor);
-        ObjectSetInteger(0, name, OBJPROP_WIDTH, m_style.widthPOIBorder);
+        ObjectSetInteger(0, name, OBJPROP_WIDTH, borderWidth);
         ObjectSetInteger(0, name, OBJPROP_STYLE, borderStyle);
         ObjectSetInteger(0, name, OBJPROP_FILL, true);       // Enable MT5 background fill
         ObjectSetInteger(0, name, OBJPROP_BACK, true);       // Draw behind candles for transparency effect
         ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
         ObjectSetInteger(0, name, OBJPROP_SELECTED, false);
         ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
+
+        // 4. Active POI label (type + price range) — only on active POIs, not mitigated
+        string labelName = GetLabelName(poi.id, poi.type);
+        if (isActive)
+        {
+            string labelText = StringFormat("%s\n%s – %s",
+                GetPoiTypeLabel(poi.type),
+                DoubleToString(poi.lowerPrice, _Digits),
+                DoubleToString(poi.upperPrice, _Digits));
+
+            if (ObjectFind(0, labelName) < 0)
+                ObjectCreate(0, labelName, OBJ_TEXT, 0, time1, poi.upperPrice);
+            else
+                ObjectMove(0, labelName, 0, time1, poi.upperPrice);
+
+            ObjectSetString(0, labelName, OBJPROP_TEXT, labelText);
+            ObjectSetString(0, labelName, OBJPROP_FONT, m_style.fontName);
+            ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, m_style.fontSizeLabel);
+            ObjectSetInteger(0, labelName, OBJPROP_COLOR, zoneColor);
+            ObjectSetInteger(0, labelName, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+            ObjectSetInteger(0, labelName, OBJPROP_BACK, false);
+            ObjectSetInteger(0, labelName, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, labelName, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, labelName, OBJPROP_HIDDEN, true);
+        }
+        else
+        {
+            // Clean up label if POI became mitigated
+            if (ObjectFind(0, labelName) >= 0)
+                ObjectDelete(0, labelName);
+        }
     }
 
 public:
@@ -162,6 +220,7 @@ public:
     void Reset()
     {
         ObjectsDeleteAll(0, "MNS_POI_");
+        ObjectsDeleteAll(0, "MNS_POILbl_"); // Remove all POI zone labels
     }
 
     /// @brief Processes POI list and draws/cleans chart objects.

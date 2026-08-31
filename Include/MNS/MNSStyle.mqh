@@ -119,8 +119,8 @@ struct SIndicatorStyle {
         colorBearishCHoCH = clrOrange;
 
         // Default widths and sizes
-        sizeExtArrow = 2;
-        sizeIntArrow = 1;
+        sizeExtArrow = 3;
+        sizeIntArrow = 2;
         widthBOSLine = 1;
         widthCHoCHLine = 1;
 
@@ -129,8 +129,8 @@ struct SIndicatorStyle {
         fontSizeLabel = 9;
 
         // Arrow codes (Wingdings: 233 is Up Arrow, 234 is Down Arrow)
-        codeArrowHigh = 234; // Down arrow — placed above the candle, pointing INTO the swing high
-        codeArrowLow  = 233; // Up arrow  — placed below the candle, pointing INTO the swing low
+        codeArrowHigh = 159; // Filled circle dot — placed above the candle at the confirmed swing high
+        codeArrowLow  = 159; // Filled circle dot — placed below the candle at the confirmed swing low
 
         // Line styles
         styleBOS = STYLE_DASH;

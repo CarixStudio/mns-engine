@@ -141,16 +141,16 @@ input int    InpDashboardY       = 20;
 input int    InpDashboardWidth   = 250;
 
 /// @brief Enable rendering of Premium Zones on the chart.
-input bool   InpShowZonePremium      = true;
+input bool   InpShowZonePremium      = false;
 
 /// @brief Enable rendering of Discount Zones on the chart.
-input bool   InpShowZoneDiscount     = true;
+input bool   InpShowZoneDiscount     = false;
 
 /// @brief Enable rendering of the Equilibrium midpoint line.
-input bool   InpShowZoneEquilibrium  = true;
+input bool   InpShowZoneEquilibrium  = false;
 
 /// @brief Enable background session shading bands.
-input bool   InpShowSessions         = true;
+input bool   InpShowSessions         = false;
 
 /// @brief Maximum historical session shading blocks to render.
 input int    InpMaxRenderedSessions  = 15;

@@ -57,7 +57,7 @@ private:
     }
 
     // Helper: Creates or updates line and label objects on the chart
-    void RenderBreak(const SStructureBreak &brk)
+    void RenderBreak(const SStructureBreak &brk, bool isMostRecent = false)
     {
         string lineName  = GetLineObjectName(brk);
         string labelName = GetLabelObjectName(brk);
@@ -98,6 +98,10 @@ private:
             lineStyle = m_style.styleBOS;
             labelText = "BOS";
         }
+
+        // Most recent break gets +1 width for visual priority over historical breaks
+        if (isMostRecent)
+            lineWidth += 1;
 
         // --- 1. Draw/Update the Trend Line Object ---
         if (ObjectFind(0, lineName) < 0)
@@ -195,6 +199,18 @@ public:
         int startIdx = breakCount - m_maxBreaks;
         if (startIdx < 0) startIdx = 0;
 
+        // Find the most recent confirmed break index for visual weight priority
+        int mostRecentIdx = -1;
+        for (int i = breakCount - 1; i >= startIdx; i--)
+        {
+            SStructureBreak brk = breakDetector.GetBreak(i);
+            if (brk.isConfirmed)
+            {
+                mostRecentIdx = i;
+                break;
+            }
+        }
+
         for (int i = 0; i < breakCount; i++)
         {
             SStructureBreak brk = breakDetector.GetBreak(i);
@@ -214,7 +230,9 @@ public:
             }
             else
             {
-                RenderBreak(brk);
+                // Render most-recent break at width 2 for visual priority; historical at width 1
+                bool isMostRecent = (i == mostRecentIdx);
+                RenderBreak(brk, isMostRecent);
             }
         }
     }

@@ -53,6 +53,21 @@ private:
         return StringFormat("%s%s_%d", prefix, typeStr, id);
     }
 
+    /// @brief Generates the label object name for a liquidity pool.
+    /// @param id Unique pool identifier.
+    /// @param type Liquidity type.
+    /// @param source Liquidity source.
+    /// @return The constructed label object name.
+    string GetLabelName(int id, ELiquidityType type, ELiquiditySource source) const
+    {
+        string typeStr = "";
+        if (source == LIQ_SRC_EQ)
+            typeStr = (type == LIQUIDITY_BSL) ? "EQH" : "EQL";
+        else
+            typeStr = (type == LIQUIDITY_BSL) ? "BSL" : "SSL";
+        return StringFormat("MNS_LiqLbl%s_%d", typeStr, id);
+    }
+
     /// @brief Checks if a pool is active on the chart.
     /// @param pool The liquidity pool structure.
     /// @return True if the pool is active (LIQ_ACTIVE or LIQ_TOUCHED).
@@ -144,6 +159,31 @@ private:
         ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
         ObjectSetInteger(0, name, OBJPROP_SELECTED, false);
         ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
+
+        // --- Draw/Update the inline name label ---
+        string labelName = GetLabelName(pool.id, pool.type, pool.source);
+        string labelText = "";
+        if (isSwept)
+            labelText = "Swept";
+        else if (pool.source == LIQ_SRC_EQ)
+            labelText = (pool.type == LIQUIDITY_BSL) ? "EQH" : "EQL";
+        else
+            labelText = (pool.type == LIQUIDITY_BSL) ? "BSL" : "SSL";
+
+        if (ObjectFind(0, labelName) < 0)
+            ObjectCreate(0, labelName, OBJ_TEXT, 0, time2, price);
+        else
+            ObjectMove(0, labelName, 0, time2, price);
+
+        ObjectSetString(0, labelName, OBJPROP_TEXT, labelText);
+        ObjectSetString(0, labelName, OBJPROP_FONT, m_style.fontName);
+        ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, m_style.fontSizeLabel);
+        ObjectSetInteger(0, labelName, OBJPROP_COLOR, lineColor);
+        ObjectSetInteger(0, labelName, OBJPROP_ANCHOR, ANCHOR_RIGHT_LOWER);
+        ObjectSetInteger(0, labelName, OBJPROP_BACK, false);
+        ObjectSetInteger(0, labelName, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, labelName, OBJPROP_SELECTED, false);
+        ObjectSetInteger(0, labelName, OBJPROP_HIDDEN, true);
     }
 
 public:
@@ -174,7 +214,8 @@ public:
     /// @brief Clears all liquidity pool objects from the chart.
     void Reset()
     {
-        ObjectsDeleteAll(0, "MNS_Liq");
+        ObjectsDeleteAll(0, "MNS_Liq");    // covers MNS_LiqBSL_, MNS_LiqSSL_, MNS_LiqEQH_, MNS_LiqEQL_
+        ObjectsDeleteAll(0, "MNS_LiqLbl"); // covers all inline name labels
     }
 
     /// @brief Processes liquidity pools and draws/cleans chart objects.

@@ -116,7 +116,7 @@ public:
         s_config.showZonePremium      = true;
         s_config.showZoneDiscount     = true;
         s_config.showZoneEquilibrium  = true;
-        s_config.showSessions         = true;
+        s_config.showSessions         = false;  // Off by default — enable via InpShowSessions input
         s_config.maxRenderedSessions  = 15;
 
         //--- Stage 14 defaults

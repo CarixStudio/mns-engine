@@ -221,11 +221,11 @@ public:
                 ObjectMove(0, m_dolLabelName, 0, endT, targetP);
             }
 
-            ObjectSetString(0, m_dolLabelName, OBJPROP_TEXT, "DOL");
+            ObjectSetString(0, m_dolLabelName, OBJPROP_TEXT, "DOL / TAKE PROFIT");
             ObjectSetString(0, m_dolLabelName, OBJPROP_FONT, m_style.fontName);
             ObjectSetInteger(0, m_dolLabelName, OBJPROP_FONTSIZE, m_style.fontSizeLabel);
             ObjectSetInteger(0, m_dolLabelName, OBJPROP_COLOR, m_style.colorDOL);
-            ObjectSetInteger(0, m_dolLabelName, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            ObjectSetInteger(0, m_dolLabelName, OBJPROP_ANCHOR, ANCHOR_RIGHT_LOWER);
             ObjectSetInteger(0, m_dolLabelName, OBJPROP_BACK, false);
             ObjectSetInteger(0, m_dolLabelName, OBJPROP_SELECTABLE, false);
             ObjectSetInteger(0, m_dolLabelName, OBJPROP_SELECTED, false);

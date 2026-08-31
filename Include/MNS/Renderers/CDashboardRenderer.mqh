@@ -170,6 +170,12 @@ private:
     /// @brief Hides all detail info rows (used when collapsed or hidden).
     void HideDetailRows()
     {
+        // Section headers
+        SetObjectVisibility("MNS_DASH_SEC_MARKET", false);
+        SetObjectVisibility("MNS_DASH_SEC_SETUP", false);
+        SetObjectVisibility("MNS_DASH_SEC_SIGNAL", false);
+        SetObjectVisibility("MNS_DASH_SEC_FILTERS", false);
+        // Rows
         SetObjectVisibility("MNS_DASH_LBL_SYMBOL", false);
         SetObjectVisibility("MNS_DASH_VAL_SYMBOL", false);
         SetObjectVisibility("MNS_DASH_LBL_TREND", false);
@@ -205,6 +211,12 @@ private:
     /// @brief Shows all detail info rows (used when expanded).
     void ShowDetailRows()
     {
+        // Section headers always visible when expanded
+        SetObjectVisibility("MNS_DASH_SEC_MARKET", true);
+        SetObjectVisibility("MNS_DASH_SEC_SETUP", true);
+        SetObjectVisibility("MNS_DASH_SEC_SIGNAL", true);
+        SetObjectVisibility("MNS_DASH_SEC_FILTERS", !m_essentialsOnly); // Filters only in full mode
+        // Rows
         SetObjectVisibility("MNS_DASH_LBL_SYMBOL", true);
         SetObjectVisibility("MNS_DASH_VAL_SYMBOL", true);
         SetObjectVisibility("MNS_DASH_LBL_TREND", true);
@@ -327,17 +339,45 @@ public:
         m_dragDx = 0;
         m_dragDy = 0;
 
-        // Set default offsets based on chart dimensions (anchored to top-right)
-        int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
-        m_xOffset = chartWidth - m_width - cfg.dashboardX;
+        // GlobalVariable prefix for this chart's persisted state
+        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+
+        // Set initial offsets — safe fallback values until first valid chart size is available
+        // Default: top-left corner with padding (will be clamped to top-right on first Draw if chartWidth > 0)
+        m_xOffset = 20;
         m_yOffset = cfg.dashboardY;
 
-        // Load persisted states if they exist
-        string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
-        if (GlobalVariableCheck(prefix + "X"))
-            m_xOffset = (int)GlobalVariableGet(prefix + "X");
+        // Restore persisted position only if chart dimensions are available and position is on-screen
+        int initChartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+        if (initChartWidth > 0)
+        {
+            // Try to restore saved X
+            if (GlobalVariableCheck(prefix + "X"))
+            {
+                int savedX = (int)GlobalVariableGet(prefix + "X");
+                if (savedX >= 0 && savedX <= initChartWidth - m_width)
+                    m_xOffset = savedX;
+                else
+                    m_xOffset = MathMax(0, initChartWidth - m_width - cfg.dashboardX); // right-anchored default
+            }
+            else
+            {
+                m_xOffset = MathMax(0, initChartWidth - m_width - cfg.dashboardX); // right-anchored default
+            }
+        }
+        else
+        {
+            // chartWidth not ready — skip GlobalVariable restore entirely;
+            // UpdateObjectPositions() will clamp + write-back on first valid frame.
+        }
+
+        // Restore Y (independent of chartWidth)
         if (GlobalVariableCheck(prefix + "Y"))
-            m_yOffset = (int)GlobalVariableGet(prefix + "Y");
+        {
+            int savedY = (int)GlobalVariableGet(prefix + "Y");
+            if (savedY >= 0)
+                m_yOffset = savedY;
+        }
         if (GlobalVariableCheck(prefix + "COLLAPSED"))
             m_isCollapsed = (GlobalVariableGet(prefix + "COLLAPSED") > 0.5);
         if (GlobalVariableCheck(prefix + "LOCKED"))
@@ -404,6 +444,11 @@ public:
         DeleteObject("MNS_DASH_VAL_ENTRY_PRICE");
         DeleteObject("MNS_DASH_LBL_SL");
         DeleteObject("MNS_DASH_VAL_SL");
+        // Section header labels
+        DeleteObject("MNS_DASH_SEC_MARKET");
+        DeleteObject("MNS_DASH_SEC_SETUP");
+        DeleteObject("MNS_DASH_SEC_SIGNAL");
+        DeleteObject("MNS_DASH_SEC_FILTERS");
     }
 
     /// @brief Cleans up terminal global variables associated with this chart.
@@ -422,8 +467,14 @@ public:
     {
         if (m_isCollapsed)
             return 22 + m_style.paddingDashboard;
-        int numRows = m_essentialsOnly ? 8 : 15;
-        return 22 + m_style.paddingDashboard + numRows * m_style.rowHeightDashboard + m_style.paddingDashboard + 18 + m_style.paddingDashboard;
+        // 4 section headers × 14px + rows × rowHeight + top/bottom padding + reset button
+        int numRows    = m_essentialsOnly ? 8 : 15;
+        int numHeaders = 4;  // MARKET STATE, ACTIVE SETUP, SIGNAL, FILTERS
+        int headerH    = 14; // px per section header
+        return 22 + m_style.paddingDashboard
+               + numHeaders * headerH
+               + numRows * m_style.rowHeightDashboard
+               + m_style.paddingDashboard + 18 + m_style.paddingDashboard;
     }
 
     /// @brief Ensures all layout objects are created and formatted.
@@ -446,7 +497,14 @@ public:
         CreateButton("MNS_DASH_BTN_COLLAPSE", m_isCollapsed ? "FULL" : "HUD", 45, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
         CreateButton("MNS_DASH_BTN_HIDE", "HIDE", 35, 18, m_style.fontNameDashboard, m_style.fontSizeDashboard, C'40, 40, 40', m_style.colorDashboardText);
 
-        // 6. Detail rows (labels)
+        // 6a. Section Header Labels (grouped layout separators)
+        color secHeaderColor = C'100, 100, 60'; // Muted amber/gold — subtle but readable
+        CreateLabel("MNS_DASH_SEC_MARKET",  "-- MARKET STATE --",  secHeaderColor, m_style.fontNameDashboard, m_style.fontSizeDashboard - 1, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_SEC_SETUP",   "-- ACTIVE SETUP --",  secHeaderColor, m_style.fontNameDashboard, m_style.fontSizeDashboard - 1, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_SEC_SIGNAL",  "-- SIGNAL --",        secHeaderColor, m_style.fontNameDashboard, m_style.fontSizeDashboard - 1, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_SEC_FILTERS", "-- FILTERS --",       secHeaderColor, m_style.fontNameDashboard, m_style.fontSizeDashboard - 1, ANCHOR_LEFT_UPPER);
+
+        // 6b. Detail rows (labels)
         CreateLabel("MNS_DASH_LBL_SYMBOL", "Symbol/TF:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_TREND", "Trend:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_PHASE", "Phase:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
@@ -454,14 +512,14 @@ public:
         CreateLabel("MNS_DASH_LBL_BOS", "Last BOS:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_CHOCH", "Last CHoCH:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_BIAS", "Liq Bias:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
-        CreateLabel("MNS_DASH_LBL_DOL", "TP (DOL Target):", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_DOL", "TP (DOL):", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_POI", "Active POI:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_ZONE", "DR Zone:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_SESSION", "Session:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_CONFIRMATION", "Confirmation:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_ENTRY", "Entry Signal:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
         CreateLabel("MNS_DASH_LBL_ENTRY_PRICE", "Entry Price:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
-        CreateLabel("MNS_DASH_LBL_SL", "SL (Stop Loss):", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
+        CreateLabel("MNS_DASH_LBL_SL", "Stop Loss:", m_style.colorDashboardText, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_LEFT_UPPER);
 
         // 7. Detail values (default initial texts to avoid empty labels showing default MT5 "Label" text)
         CreateLabel("MNS_DASH_VAL_SYMBOL", "N/A", m_style.colorDashboardValue, m_style.fontNameDashboard, m_style.fontSizeDashboard, ANCHOR_RIGHT_UPPER);
@@ -499,13 +557,23 @@ public:
 
         if (chartWidth > 0 && chartHeight > 0)
         {
+            bool clamped = false;
             if (m_xOffset < 0 || m_xOffset > chartWidth - m_width)
             {
                 m_xOffset = MathMax(0, chartWidth - m_width - 20);
+                clamped = true;
             }
             if (m_yOffset < 0 || m_yOffset > chartHeight - panelHeight)
             {
                 m_yOffset = MathMax(0, 20);
+                clamped = true;
+            }
+            // Write back corrected position to GlobalVariable so corrupted off-screen value is replaced
+            if (clamped)
+            {
+                string prefix = StringFormat("MNS_DASH_%I64d_%s_%d_", ChartID(), _Symbol, _Period);
+                GlobalVariableSet(prefix + "X", (double)m_xOffset);
+                GlobalVariableSet(prefix + "Y", (double)m_yOffset);
             }
         }
 
@@ -541,44 +609,81 @@ public:
         // Detail rows (if expanded)
         if (!m_isCollapsed)
         {
-            int startY = m_yOffset + 22 + m_style.paddingDashboard;
-            
+            int y      = m_yOffset + 22 + m_style.paddingDashboard;
+            int rH     = m_style.rowHeightDashboard;
+            int secH   = 14; // Section header height in pixels
+            int pad    = m_style.paddingDashboard;
+            int secX   = m_xOffset + pad;
+
             if (m_essentialsOnly)
             {
-                SetRowPosition("SYMBOL", startY + 0 * m_style.rowHeightDashboard);
-                SetRowPosition("TREND", startY + 1 * m_style.rowHeightDashboard);
-                SetRowPosition("DOL", startY + 2 * m_style.rowHeightDashboard);
-                SetRowPosition("POI", startY + 3 * m_style.rowHeightDashboard);
-                SetRowPosition("CONFIRMATION", startY + 4 * m_style.rowHeightDashboard);
-                SetRowPosition("ENTRY", startY + 5 * m_style.rowHeightDashboard);
-                SetRowPosition("ENTRY_PRICE", startY + 6 * m_style.rowHeightDashboard);
-                SetRowPosition("SL", startY + 7 * m_style.rowHeightDashboard);
+                // --- GROUP 1: MARKET STATE ---
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_MARKET"), OBJPROP_XDISTANCE, secX);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_MARKET"), OBJPROP_YDISTANCE, y);
+                y += secH;
+                SetRowPosition("SYMBOL", y);       y += rH;
+                SetRowPosition("TREND",  y);        y += rH;
+
+                // --- GROUP 2: ACTIVE SETUP ---
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_SETUP"), OBJPROP_XDISTANCE, secX);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_SETUP"), OBJPROP_YDISTANCE, y);
+                y += secH;
+                SetRowPosition("DOL", y);           y += rH;
+                SetRowPosition("POI", y);           y += rH;
+
+                // --- GROUP 3: SIGNAL ---
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_SIGNAL"), OBJPROP_XDISTANCE, secX);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_SIGNAL"), OBJPROP_YDISTANCE, y);
+                y += secH;
+                SetRowPosition("CONFIRMATION", y);  y += rH;
+                SetRowPosition("ENTRY",        y);  y += rH;
+                SetRowPosition("ENTRY_PRICE",  y);  y += rH;
+                SetRowPosition("SL",           y);  y += rH;
 
                 // Reset Button
-                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
-                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, m_yOffset + 22 + 8 * m_style.rowHeightDashboard + m_style.paddingDashboard * 2);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + pad);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, y + pad);
             }
             else
             {
-                SetRowPosition("SYMBOL", startY + 0 * m_style.rowHeightDashboard);
-                SetRowPosition("TREND", startY + 1 * m_style.rowHeightDashboard);
-                SetRowPosition("PHASE", startY + 2 * m_style.rowHeightDashboard);
-                SetRowPosition("STRUCTURE", startY + 3 * m_style.rowHeightDashboard);
-                SetRowPosition("BOS", startY + 4 * m_style.rowHeightDashboard);
-                SetRowPosition("CHOCH", startY + 5 * m_style.rowHeightDashboard);
-                SetRowPosition("BIAS", startY + 6 * m_style.rowHeightDashboard);
-                SetRowPosition("DOL", startY + 7 * m_style.rowHeightDashboard);
-                SetRowPosition("POI", startY + 8 * m_style.rowHeightDashboard);
-                SetRowPosition("ZONE", startY + 9 * m_style.rowHeightDashboard);
-                SetRowPosition("SESSION", startY + 10 * m_style.rowHeightDashboard);
-                SetRowPosition("CONFIRMATION", startY + 11 * m_style.rowHeightDashboard);
-                SetRowPosition("ENTRY", startY + 12 * m_style.rowHeightDashboard);
-                SetRowPosition("ENTRY_PRICE", startY + 13 * m_style.rowHeightDashboard);
-                SetRowPosition("SL", startY + 14 * m_style.rowHeightDashboard);
+                // --- GROUP 1: MARKET STATE ---
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_MARKET"), OBJPROP_XDISTANCE, secX);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_MARKET"), OBJPROP_YDISTANCE, y);
+                y += secH;
+                SetRowPosition("SYMBOL",    y);     y += rH;
+                SetRowPosition("TREND",     y);     y += rH;
+                SetRowPosition("PHASE",     y);     y += rH;
+                SetRowPosition("STRUCTURE", y);     y += rH;
+                SetRowPosition("BOS",       y);     y += rH;
+                SetRowPosition("CHOCH",     y);     y += rH;
+                SetRowPosition("BIAS",      y);     y += rH;
+
+                // --- GROUP 2: ACTIVE SETUP ---
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_SETUP"), OBJPROP_XDISTANCE, secX);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_SETUP"), OBJPROP_YDISTANCE, y);
+                y += secH;
+                SetRowPosition("DOL",  y);          y += rH;
+                SetRowPosition("POI",  y);          y += rH;
+                SetRowPosition("ZONE", y);          y += rH;
+
+                // --- GROUP 3: SIGNAL ---
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_SIGNAL"), OBJPROP_XDISTANCE, secX);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_SIGNAL"), OBJPROP_YDISTANCE, y);
+                y += secH;
+                SetRowPosition("CONFIRMATION", y);  y += rH;
+                SetRowPosition("ENTRY",        y);  y += rH;
+                SetRowPosition("ENTRY_PRICE",  y);  y += rH;
+                SetRowPosition("SL",           y);  y += rH;
+
+                // --- GROUP 4: FILTERS ---
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_FILTERS"), OBJPROP_XDISTANCE, secX);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_SEC_FILTERS"), OBJPROP_YDISTANCE, y);
+                y += secH;
+                SetRowPosition("SESSION", y);       y += rH;
 
                 // Reset Button
-                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + m_style.paddingDashboard);
-                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, m_yOffset + 22 + 15 * m_style.rowHeightDashboard + m_style.paddingDashboard * 2);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_XDISTANCE, m_xOffset + pad);
+                ObjectSetInteger(0, GetObjName("MNS_DASH_BTN_RESET"), OBJPROP_YDISTANCE, y + pad);
             }
         }
     }
