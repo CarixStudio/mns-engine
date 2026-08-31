@@ -4,8 +4,8 @@
 //|                                                                  |
 //| Purpose:                                                         |
 //|   Core Expert Advisor shell and lifecycle coordinator pipeline.   |
-//|   Sequences initialization, updates, and risk sizing across all  |
-//|   11 strategy engines.                                           |
+//|   Sequences initialization, updates, risk sizing, and order       |
+//|   execution across all 11 strategy engines.                       |
 //|                                                                  |
 //| Version: 1.00                                                    |
 //| Copyright 2026, MNS Trading Engine.                              |
@@ -18,6 +18,9 @@
 //+------------------------------------------------------------------+
 //| Dependencies & Includes                                          |
 //+------------------------------------------------------------------+
+// Standard Trade Library
+#include <Trade/Trade.mqh>
+
 // Infrastructure Includes
 #include <MNS/MNSCore.mqh>
 #include <MNS/MNSTypes.mqh>
@@ -52,10 +55,16 @@ input bool   InpDebugLogging     = false;    // Verbose Debug Logging
 //--- EA Operational Settings
 input bool   InpAutoTrading      = false;    // Enable Automated Trade Execution
 input int    InpMaxHistoryBars   = 1000;     // History Bars to Analyze
+input ulong  InpMagicNumber      = 20260831; // EA Magic Number
+input string InpTradeComment     = "MNS_EA"; // Order Comment Description
 
 //+------------------------------------------------------------------+
-//| File-Scope Engine Instances (Static Allocation in DAG Order)     |
+//| File-Scope Engine & Trade Instances                              |
 //+------------------------------------------------------------------+
+// MQL5 Standard Trade Instance
+CTrade g_trade;
+
+// File-Scope Engine Instances (Static Allocation in DAG Order)
 CSwingDetector           g_swingDetector;
 CStructureEngine         g_structureEngine;
 CBreakDetector           g_breakDetector;
@@ -67,6 +76,45 @@ CObjectiveEngine         g_objectiveEngine;
 CConfirmationEngine      g_confirmationEngine;
 CEntryEngine             g_entryEngine;
 CRiskEngine              g_riskEngine;
+
+//+------------------------------------------------------------------+
+//| Helper: Check if an open position exists for symbol & magic      |
+//+------------------------------------------------------------------+
+bool IsPositionOpen()
+{
+    int total = PositionsTotal();
+    for (int i = 0; i < total; i++)
+    {
+        string posSymbol = PositionGetSymbol(i);
+        if (posSymbol == _Symbol)
+        {
+            if (PositionGetInteger(POSITION_MAGIC) == (long)InpMagicNumber)
+                return true;
+        }
+    }
+    return false;
+}
+
+//+------------------------------------------------------------------+
+//| Helper: Check if a pending order exists for symbol & magic       |
+//+------------------------------------------------------------------+
+bool IsOrderPending()
+{
+    int total = OrdersTotal();
+    for (int i = 0; i < total; i++)
+    {
+        ulong ticket = OrderGetTicket(i);
+        if (ticket > 0)
+        {
+            if (OrderGetString(ORDER_SYMBOL) == _Symbol)
+            {
+                if (OrderGetInteger(ORDER_MAGIC) == (long)InpMagicNumber)
+                    return true;
+            }
+        }
+    }
+    return false;
+}
 
 //+------------------------------------------------------------------+
 //| Expert Initialization Function (OnInit)                          |
@@ -81,17 +129,21 @@ int OnInit()
         StringFormat("Initializing MNS Expert Advisor v1.0 on %s %s",
                      _Symbol, EnumToString((ENUM_TIMEFRAMES)_Period)));
 
-    //--- 2. Load default configuration parameters
+    //--- 2. Configure CTrade instance
+    g_trade.SetExpertMagicNumber(InpMagicNumber);
+    g_trade.SetDeviationInPoints(30);
+
+    //--- 3. Load default configuration parameters
     CMNSConfig::SetDefaults();
 
-    //--- 3. Sync MT5 input parameters to CMNSConfig
+    //--- 4. Sync MT5 input parameters to CMNSConfig
     CMNSConfig::UpdateParameter("gmtOffset", (double)InpGmtOffset);
     CMNSConfig::UpdateParameter("maxSpreadPoints", InpMaxSpreadPoints);
     CMNSConfig::UpdateParameter("desiredRiskPercent", InpDefaultRisk);
     CMNSConfig::UpdateParameter("logEnable", 1.0);
     CMNSConfig::UpdateParameter("logLevel", InpDebugLogging ? 0.0 : 1.0);
 
-    //--- 4. Load dynamic settings from sandbox profile if provided
+    //--- 5. Load dynamic settings from sandbox profile if provided
     if (InpConfigFile != "")
     {
         if (CMNSConfig::LoadFromFile(InpConfigFile))
@@ -110,7 +162,7 @@ int OnInit()
     if (pointSize <= 0.0) pointSize = _Point;
     double staticMinBreakDist = 2.0 * pointSize;
 
-    //--- 5. Initialize all 11 core strategy engines in strict DAG order
+    //--- 6. Initialize all 11 core strategy engines in strict DAG order
     if (!g_swingDetector.Initialize(cfg.externalDepth, cfg.internalDepth))
     {
         MNS_Log(MNS_LOG_FATAL, "MNS_EA", "CSwingDetector::Initialize() FAILED.");
@@ -188,7 +240,7 @@ int OnInit()
     }
     MNS_Log(MNS_LOG_INFO, "MNS_EA", "CRiskEngine initialized.");
 
-    //--- 6. Configure system timer for periodic operations
+    //--- 7. Configure system timer for periodic operations
     if (!EventSetTimer(1))
     {
         MNS_Log(MNS_LOG_WARN, "MNS_EA", "Failed to register 1-second system timer.");
@@ -329,17 +381,36 @@ void OnTick()
                          high, low, close, open, time,
                          copied, 0, currentSpread);
 
-    //--- 6. Check Active Signal Triggers & Sizing
+    //--- 6. Check Active Signal Triggers & Execute Trade Pipeline
     if (g_entryEngine.GetActiveSignalState() == ENTRY_STATE_ACTIVE)
     {
         SEntrySignal activeSig = g_entryEngine.GetActiveSignal();
+        static datetime s_lastProcessedSignalId = 0;
 
-        static datetime s_lastLoggedSignalId = 0;
-        if (activeSig.id != s_lastLoggedSignalId)
+        // Step 3.2: Verify no overlapping open positions or pending orders
+        if (IsPositionOpen() || IsOrderPending())
         {
-            s_lastLoggedSignalId = activeSig.id;
-
-            // Compute pre-trade risk parameters
+            if (activeSig.id != s_lastProcessedSignalId)
+            {
+                s_lastProcessedSignalId = activeSig.id;
+                MNS_Log(MNS_LOG_INFO, "MNS_EA",
+                    "[TRADE SKIPPED] Active position or pending order found for symbol with matching Magic Number.");
+            }
+        }
+        // Step 3.3: Verify broker spread limits
+        else if (currentSpread > cfg.maxSpreadPoints)
+        {
+            if (activeSig.id != s_lastProcessedSignalId)
+            {
+                s_lastProcessedSignalId = activeSig.id;
+                MNS_Log(MNS_LOG_WARN, "MNS_EA",
+                    StringFormat("[SPREAD LIMIT EXCEEDED] Current spread (%.1f pts) exceeds maximum limit (%.1f pts). Trade skipped.",
+                                 currentSpread, cfg.maxSpreadPoints));
+            }
+        }
+        else
+        {
+            // Step 3.4: Query risk sizing and execution parameters
             SRiskSizingResult riskResult = g_riskEngine.SizePreTrade(activeSig.direction,
                                                                      activeSig.entryPrice,
                                                                      activeSig.stopLoss,
@@ -349,20 +420,85 @@ void OnTick()
                                                                      AccountInfoDouble(ACCOUNT_EQUITY),
                                                                      _Symbol);
 
-            string dirStr = (activeSig.direction == CONFIRM_DIR_BULLISH) ? "BULLISH (BUY)" : "BEARISH (SELL)";
-            string logMsg = StringFormat("[ENTRY SIGNAL ACTIVE] SignalID: %s | Direction: %s | Entry: %.5f | SL: %.5f | TP: %.5f | R:R: %.2f | Approved: %s | Lot Volume: %.2f | Risk: %.2f",
-                                         TimeToString(activeSig.id, TIME_DATE | TIME_SECONDS),
-                                         dirStr,
-                                         activeSig.entryPrice,
-                                         activeSig.stopLoss,
-                                         activeSig.takeProfit,
-                                         riskResult.expectedRr,
-                                         riskResult.approved ? "YES" : "NO",
-                                         riskResult.volume,
-                                         riskResult.riskAmount);
+            if (activeSig.id != s_lastProcessedSignalId)
+            {
+                s_lastProcessedSignalId = activeSig.id;
 
-            Print(logMsg);
-            MNS_Log(MNS_LOG_INFO, "MNS_EA", logMsg);
+                string dirStr = (activeSig.direction == CONFIRM_DIR_BULLISH) ? "BULLISH (BUY)" : "BEARISH (SELL)";
+                MNS_Log(MNS_LOG_INFO, "MNS_EA",
+                    StringFormat("[ENTRY SIGNAL ACTIVE] SignalID: %s | Direction: %s | Entry: %.*f | SL: %.*f | TP: %.*f | R:R: %.2f | Approved: %s | Lot Volume: %.2f | Risk: %.2f",
+                                 TimeToString(activeSig.id, TIME_DATE | TIME_SECONDS),
+                                 dirStr,
+                                 _Digits, activeSig.entryPrice,
+                                 _Digits, activeSig.stopLoss,
+                                 _Digits, activeSig.takeProfit,
+                                 riskResult.expectedRr,
+                                 riskResult.approved ? "YES" : "NO",
+                                 riskResult.volume,
+                                 riskResult.riskAmount));
+
+                // Check Automated Trading toggle input parameter
+                if (!InpAutoTrading)
+                {
+                    MNS_Log(MNS_LOG_INFO, "MNS_EA", "[AUTO-TRADING DISABLED] Signal detected and logged. InpAutoTrading is false — market execution skipped.");
+                }
+                else if (riskResult.approved && riskResult.volume > 0.0)
+                {
+                    // Step 3.5: Execute Market Order via CTrade
+                    double volMin  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+                    double volMax  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
+                    double volStep = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+                    if (volMin <= 0.0)  volMin = 0.01;
+                    if (volMax <= 0.0)  volMax = 100.0;
+                    if (volStep <= 0.0) volStep = 0.01;
+
+                    double volume = MathFloor(riskResult.volume / volStep) * volStep;
+                    if (volume < volMin) volume = volMin;
+                    if (volume > volMax) volume = volMax;
+                    volume = NormalizeDouble(volume, 2);
+
+                    double slPrice = NormalizeDouble(activeSig.stopLoss, _Digits);
+                    double tpPrice = NormalizeDouble(activeSig.takeProfit, _Digits);
+
+                    g_trade.SetExpertMagicNumber(InpMagicNumber);
+                    g_trade.SetDeviationInPoints(30);
+
+                    bool orderSent = false;
+                    double execPrice = 0.0;
+
+                    if (activeSig.direction == CONFIRM_DIR_BULLISH)
+                    {
+                        execPrice = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_ASK), _Digits);
+                        orderSent = g_trade.Buy(volume, _Symbol, execPrice, slPrice, tpPrice, InpTradeComment);
+                    }
+                    else if (activeSig.direction == CONFIRM_DIR_BEARISH)
+                    {
+                        execPrice = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_BID), _Digits);
+                        orderSent = g_trade.Sell(volume, _Symbol, execPrice, slPrice, tpPrice, InpTradeComment);
+                    }
+
+                    uint retcode = g_trade.ResultRetcode();
+                    if (orderSent && (retcode == TRADE_RETCODE_DONE || retcode == TRADE_RETCODE_PLACED))
+                    {
+                        g_entryEngine.SetActiveSignalExecuted();
+                        string execMsg = StringFormat("[TRADE EXECUTED] Lot Volume: %.2f | Entry: %.*f | SL: %.*f | TP: %.*f",
+                                                     volume, _Digits, execPrice, _Digits, slPrice, _Digits, tpPrice);
+                        Print(execMsg);
+                        MNS_Log(MNS_LOG_INFO, "MNS_EA", execMsg);
+                    }
+                    else
+                    {
+                        string errMsg = StringFormat("[TRADE ERROR] Market execution failed. Retcode: %u (%s) | Error: %d",
+                                                     retcode, g_trade.ResultRetcodeDescription(), GetLastError());
+                        Print(errMsg);
+                        MNS_Log(MNS_LOG_ERROR, "MNS_EA", errMsg);
+                    }
+                }
+                else
+                {
+                    MNS_Log(MNS_LOG_WARN, "MNS_EA", "[TRADE SKIPPED] Pre-trade risk sizing was not approved or volume is 0.0.");
+                }
+            }
         }
     }
 }

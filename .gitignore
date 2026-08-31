@@ -33,3 +33,6 @@ compile_commands.json
 
 # Legacy (removed)
 src/
+
+# MQL5 standard library local duplicates
+Include/Trade/

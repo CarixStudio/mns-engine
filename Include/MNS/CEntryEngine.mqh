@@ -79,6 +79,9 @@ class CEntryEngine {
     /// @return True on success.
     bool MarkSignalConsumed();
 
+    /// @brief Alias method to mark active signal as executed.
+    bool SetActiveSignalExecuted() { return MarkSignalConsumed(); }
+
     /// @brief Checks if a specific signal ID was already consumed.
     bool IsConsumed(datetime signalId) const;
 };

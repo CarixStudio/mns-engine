@@ -40,9 +40,9 @@ public:
     /// @param close Close price array
     /// @param ratesTotal Total elements in price arrays
     /// @return 14-period ATR value at shift 1.
-    static double CalculateATR14(const double& high[],
-                                 const double& low[],
-                                 const double& close[],
+    static double CalculateATR14(const double &high[],
+                                 const double &low[],
+                                 const double &close[],
                                  int ratesTotal)
     {
         return CalculateATR(high, low, close, 1, 14, ratesTotal);
@@ -56,9 +56,9 @@ public:
     /// @param period the smoothing period (default 14)
     /// @param ratesTotal total elements in price arrays
     /// @return ATR value in points, or 0.0 on validation failure.
-    static double CalculateATR(const double& high[],
-                               const double& low[],
-                               const double& close[],
+    static double CalculateATR(const double &high[],
+                               const double &low[],
+                               const double &close[],
                                int index,
                                int period,
                                int ratesTotal)
@@ -130,9 +130,9 @@ private:
     /// @return Computed True Range.
     static double CalculateLogicalTR(int logicalIndex,
                                      bool isSeries,
-                                     const double& high[],
-                                     const double& low[],
-                                     const double& close[],
+                                     const double &high[],
+                                     const double &low[],
+                                     const double &close[],
                                      int ratesTotal)
     {
         MNS_Assert(logicalIndex >= 1 && logicalIndex < ratesTotal, "CalculateLogicalTR: logicalIndex out of bounds");

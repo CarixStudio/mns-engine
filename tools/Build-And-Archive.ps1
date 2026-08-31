@@ -83,6 +83,11 @@ $IndicatorExecOnlyRelPath = "Indicators\MNS_Indicator_ExecutionOnly.mq5"
 $IndicatorExecOnlyPath    = Join-Path $ProjectRoot $IndicatorExecOnlyRelPath
 $DeployedIndicatorExecOnly = $null
 
+# EA Coordinator Path
+$EARelPath                = "Experts\MNS_EA\MNS_EA.mq5"
+$EAPath                   = Join-Path $ProjectRoot $EARelPath
+$DeployedEA               = $null
+
 # MT5 writes EA Experts tab output (Print() calls) to:
 #   <terminal_data>\MQL5\Logs\YYYYMMDD.log
 # NOT to <terminal_data>\logs\ which is the system/network log.
@@ -270,6 +275,9 @@ function Assert-Prerequisites {
 
     $script:DeployedIndicatorExecOnly = Join-Path $firstInst.MQL5Dir $IndicatorExecOnlyRelPath
     Write-Log "Deploy target (ExecOnly Ind) : $($script:DeployedIndicatorExecOnly)"
+
+    $script:DeployedEA = Join-Path $firstInst.MQL5Dir $EARelPath
+    Write-Log "Deploy target (Expert)      : $($script:DeployedEA)"
 
     # MetaEditor must be locatable (skip check if -SkipCompile).
     if (-not $SkipCompile) {
@@ -495,6 +503,59 @@ function Invoke-CompileIndicatorExecOnly {
 
 }
 
+# -- Step 1d: Compile Expert Advisor -------------------------------------------
+
+function Invoke-CompileEA {
+    <#
+    .SYNOPSIS
+        Runs MetaEditor64.exe in CLI mode to compile MNS_EA.mq5.
+        Compiles from the MT5 MQL5 Experts path so the resulting .ex5
+        lands where MT5 loads EAs from.
+        Exits with code 1 if compilation fails.
+    #>
+
+    Write-Banner "Step 1d - Compile Expert Advisor"
+
+    $compilePath     = $script:DeployedEA
+    $compilerLogPath = [System.IO.Path]::ChangeExtension($compilePath, ".log")
+
+    if (-not (Test-Path $compilePath)) {
+        Exit-WithError "Deployed EA not found: $compilePath`n  Run deploy.ps1 first."
+    }
+
+    Write-Log "Compiling: $compilePath"
+    Write-Host ""
+
+    $compileArgs = @(
+        "/compile:`"$compilePath`"",
+        "/log:`"$compilerLogPath`""
+    )
+
+    $process = Start-Process -FilePath $script:MetaEditorExe `
+                             -ArgumentList $compileArgs `
+                             -Wait -PassThru -NoNewWindow
+
+    # Always show compiler output so warnings are visible even on success.
+    $compilerOutput = ""
+    if (Test-Path $compilerLogPath) {
+        $compilerOutput = Get-Content $compilerLogPath -Raw
+        if ($compilerOutput) {
+            Write-Host "--- Compiler Output ---"
+            Write-Host $compilerOutput
+            Write-Host "-----------------------"
+            Write-Host ""
+        }
+    }
+
+    if ($compilerOutput -match "Result:\s+0 errors") {
+        Write-Log "Expert Advisor compilation succeeded (0 errors, 0 warnings)." "SUCCESS"
+        return
+    }
+
+    Exit-WithError "Expert Advisor compilation FAILED. Check output above. Log: $compilerLogPath"
+
+}
+
 # -- Step 2: Wait for Test Harness ---------------------------------------------
 
 function Invoke-WaitForTest {
@@ -619,6 +680,7 @@ function Write-BuildReport {
         Write-Host "   [OK] MNS_TestHarness" -ForegroundColor Green
         Write-Host "   [OK] MNS_Indicator"   -ForegroundColor Green
         Write-Host "   [OK] MNS_Indicator_ExecutionOnly" -ForegroundColor Green
+        Write-Host "   [OK] MNS_EA"          -ForegroundColor Green
         Write-Host ""
     }
 
@@ -705,6 +767,7 @@ function Main {
         Invoke-Compile
         Invoke-CompileIndicator
         Invoke-CompileIndicatorExecOnly
+        Invoke-CompileEA
     }
     else {
         Write-Log "Compilation skipped (-SkipCompile)." "WARN"
