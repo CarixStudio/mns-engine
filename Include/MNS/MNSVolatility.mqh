@@ -34,6 +34,20 @@
 class CMNSVolatility
 {
 public:
+    /// @brief Convenient helper to calculate 14-period ATR at bar shift 1.
+    /// @param high High price array
+    /// @param low Low price array
+    /// @param close Close price array
+    /// @param ratesTotal Total elements in price arrays
+    /// @return 14-period ATR value at shift 1.
+    static double CalculateATR14(const double& high[],
+                                 const double& low[],
+                                 const double& close[],
+                                 int ratesTotal)
+    {
+        return CalculateATR(high, low, close, 1, 14, ratesTotal);
+    }
+
     /// @brief Calculates the Average True Range value for a specific bar index.
     /// @param high price array
     /// @param low price array
@@ -42,9 +56,9 @@ public:
     /// @param period the smoothing period (default 14)
     /// @param ratesTotal total elements in price arrays
     /// @return ATR value in points, or 0.0 on validation failure.
-    static double CalculateATR(const double &high[],
-                               const double &low[],
-                               const double &close[],
+    static double CalculateATR(const double& high[],
+                               const double& low[],
+                               const double& close[],
                                int index,
                                int period,
                                int ratesTotal)
@@ -116,9 +130,9 @@ private:
     /// @return Computed True Range.
     static double CalculateLogicalTR(int logicalIndex,
                                      bool isSeries,
-                                     const double &high[],
-                                     const double &low[],
-                                     const double &close[],
+                                     const double& high[],
+                                     const double& low[],
+                                     const double& close[],
                                      int ratesTotal)
     {
         MNS_Assert(logicalIndex >= 1 && logicalIndex < ratesTotal, "CalculateLogicalTR: logicalIndex out of bounds");

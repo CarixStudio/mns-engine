@@ -16,7 +16,6 @@
 #ifndef __MNS_SESSION_RENDERER_MQH__
 #define __MNS_SESSION_RENDERER_MQH__
 
-#include "../MNSTypes.mqh"
 #include "../MNSStyle.mqh"
 #include "../MNSConfig.mqh"
 

@@ -273,8 +273,8 @@ Expert Advisor integration, order execution, position controls, and interactive 
 
 | Stage | Name | Status | Summary |
 | :--- | :--- | :--- | :--- |
-| Stage 1 | Execution Visuals (Risk/Reward Projection) | ⬜ Pending | Shaded risk/reward boxes, entry/SL/TP levels, and pips/R:R labels on active signal or trade. | 
-| Stage 2 | EA Shell & Coordinator | ⬜ Pending | Core Expert Advisor file (`MNS_EA.mq5`) with MT5 event dispatchers and lifecycle coordination. |
+| Stage 1 | Execution Visuals (Risk/Reward Projection) | ✅ Complete | Shaded risk/reward boxes, entry/SL/TP levels, and pips/R:R labels on active signal or trade. | 
+| Stage 2 | EA Shell & Coordinator | ✅ Complete | Core Expert Advisor file (`MNS_EA.mq5`) with MT5 event dispatchers and lifecycle coordination. |
 | Stage 3 | Signal Querying & Execution Pipeline | ⬜ Pending | Order routing and dispatch (market/pending) connected to the entry engine triggers. |
 | Stage 4 | Active Position Management & Trailing | ⬜ Pending | Trailing stops, break-even updates, partial exits, and session deactivations. |
 | Stage 5 | EA Dashboard & On-Chart Controls | ⬜ Pending | On-chart panel showing account metrics, open trades, and manual EA trading controls. |
