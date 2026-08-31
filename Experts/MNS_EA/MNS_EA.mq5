@@ -52,6 +52,17 @@ input double InpMaxSpreadPoints  = 50.0;     // Max Allowed Spread (Points)
 input double InpDefaultRisk      = 1.0;      // Default Risk % Per Trade
 input bool   InpDebugLogging     = false;    // Verbose Debug Logging
 
+//--- Strategy Logic Settings (Exposed for Backtest Optimization)
+input int    InpExternalDepth           = 15;       // External Swing Depth (10-100)
+input int    InpInternalDepth           = 5;        // Internal Swing Depth (2-20)
+input double InpAtrTolerance            = 0.0010;   // ATR Proximity Tolerance Zone
+input double InpMinBreakDistance        = 0.0000;   // Min Break Distance (Points)
+input double InpConfidenceThreshold     = 94.0;     // Signal Confidence Threshold % (50-100)
+input double InpDisplacementMinAtrMult  = 1.20;     // Min Displacement ATR Multiple
+input double InpDisplacementMinBodyRatio = 0.65;    // Min Displacement Candle Body Ratio (0.0-1.0)
+input double InpDisplacementMinCloseStr = 0.75;     // Min Displacement Close Strength (0.0-1.0)
+input int    InpAtrPeriod               = 14;       // ATR Volatility Period
+
 //--- EA Operational Settings
 input bool   InpAutoTrading      = false;    // Enable Automated Trade Execution
 input int    InpMaxHistoryBars   = 1000;     // History Bars to Analyze
@@ -647,6 +658,15 @@ int OnInit()
     CMNSConfig::UpdateParameter("desiredRiskPercent", InpDefaultRisk);
     CMNSConfig::UpdateParameter("logEnable", 1.0);
     CMNSConfig::UpdateParameter("logLevel", InpDebugLogging ? 0.0 : 1.0);
+    CMNSConfig::UpdateParameter("externalDepth", (double)InpExternalDepth);
+    CMNSConfig::UpdateParameter("internalDepth", (double)InpInternalDepth);
+    CMNSConfig::UpdateParameter("atrTolerance", InpAtrTolerance);
+    CMNSConfig::UpdateParameter("minBreakDistance", InpMinBreakDistance);
+    CMNSConfig::UpdateParameter("confidenceThreshold", InpConfidenceThreshold);
+    CMNSConfig::UpdateParameter("displacementMinAtrMultiple", InpDisplacementMinAtrMult);
+    CMNSConfig::UpdateParameter("displacementMinBodyRatio", InpDisplacementMinBodyRatio);
+    CMNSConfig::UpdateParameter("displacementMinCloseStrength", InpDisplacementMinCloseStr);
+    CMNSConfig::UpdateParameter("atrPeriod", (double)InpAtrPeriod);
 
     //--- 5. Load dynamic settings from sandbox profile if provided
     if (InpConfigFile != "")
