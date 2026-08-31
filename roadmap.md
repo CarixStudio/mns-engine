@@ -380,29 +380,12 @@ Typically, an EA is much smaller than the engine because it's reusing the valida
 
 # Phase 5 — EA Dashboard
 
-Add controls like:
-
-```
-Auto Trading ON
-
-Risk 1%
-
-Current Pair
-
-Spread
-
-Open Trades
-
-Profit Today
-
-Daily DD
-
-News Filter
-
-Session
-
-Status
-```
+Interactive on-chart panel with the following controls:
+* **Auto-Trading Status Toggle:** A large clickable button that toggles automated trade execution ON/OFF (Green for active, Red/Gray for paused).
+* **Dynamic Risk Control:** Display of `Risk: X.X%` with clickable `[ - ]` and `[ + ]` buttons to decrement/increment trade risk size directly on-chart.
+* **Emergency Close Button:** A prominent red button labeled `CLOSE ALL` that immediately flattens all open positions and cancels all pending orders for the current symbol.
+* **Drawdown Monitoring:** Live display of current daily drawdown against the maximum allowed limit, turning red if approaching the threshold.
+* **Spread and Session Filters:** Live spread alerts and active session status indicators.
 
 This dashboard is interactive because it's an Expert Advisor.
 
