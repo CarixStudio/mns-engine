@@ -102,6 +102,7 @@ bool   g_runtimePartialClose = true;
 double g_runtimeRiskPercent  = 1.0;
 double g_runtimeMaxSpread    = 50.0;
 double g_runtimeMaxDailyDD   = 5.0;
+datetime g_lastHudInteractionTime = 0;
 
 //+------------------------------------------------------------------+
 //| HUD Constants                                                    |
@@ -283,7 +284,6 @@ void HUD_CreateButton(const string name, const int xDist, const int yDist,
     ObjectSetInteger(0, name, OBJPROP_FONTSIZE,  HUD_FONT_SIZE);
     ObjectSetInteger(0, name, OBJPROP_COLOR,     clrWhite);
     ObjectSetInteger(0, name, OBJPROP_BGCOLOR,   bgColor);
-    ObjectSetInteger(0, name, OBJPROP_BORDER_COLOR, HUD_COL_BORDER);
     ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
     ObjectSetInteger(0, name, OBJPROP_BACK,      false);
 }
@@ -295,7 +295,6 @@ void CreateHUD()
 {
     int lx  = HUD_X;                   // x of left-aligned label
     int vx  = HUD_X - HUD_WIDTH + 5;  // x of right-side value label
-    int bx  = HUD_X - 10;             // x start for buttons (right-justified)
     int y   = HUD_Y_START;
 
     // --- Background panel ---
@@ -306,13 +305,14 @@ void CreateHUD()
     ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_XSIZE,     HUD_WIDTH + 30);
     ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_YSIZE,     590);
     ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BGCOLOR,   HUD_COL_BG);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BORDER_COLOR, HUD_COL_BORDER);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_COLOR,     HUD_COL_BORDER); // Border color
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BORDER_TYPE, BORDER_FLAT);
     ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BACK,      false);
     ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_SELECTABLE, false);
 
     // === ROW 0: Header title + Auto-Trade button ===
     HUD_CreateLabel(HUD_PREFIX + "HDR_Title", lx, y, "MNS EA v1.0", HUD_COL_HEADER, 9);
-    HUD_CreateButton(HUD_PREFIX + "BTN_AutoTrade", vx - 90, y - 1, 90, 16, "AUTO: OFF", HUD_COL_OFF);
+    HUD_CreateButton(HUD_PREFIX + "BTN_AutoTrade", 130, y - 1, 90, 16, "AUTO: OFF", HUD_COL_OFF);
 
     // === ROW 1: Session info ===
     y += HUD_ROW_H;
@@ -376,8 +376,8 @@ void CreateHUD()
 
     // Action buttons: CLOSE ALL and MOVE TO B/E on same row
     y += HUD_ROW_H;
-    HUD_CreateButton(HUD_PREFIX + "BTN_CloseAll",       lx, y, 95, 15, "CLOSE ALL",   HUD_COL_OFF);
-    HUD_CreateButton(HUD_PREFIX + "BTN_MoveToBreakEven", lx + 100, y, 105, 15, "MOVE TO B/E", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "BTN_CloseAll",       lx - 10, y, 95, 15, "CLOSE ALL",   HUD_COL_OFF);
+    HUD_CreateButton(HUD_PREFIX + "BTN_MoveToBreakEven", 140, y, 100, 15, "MOVE TO B/E", HUD_COL_ACTION);
 
     // === Separator 3 ===
     y += HUD_ROW_H + 1;
@@ -404,7 +404,7 @@ void CreateHUD()
     HUD_CreateLabel(HUD_PREFIX + "SIG_DOL_Val", vx - 5, y, "---",       HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
-    HUD_CreateButton(HUD_PREFIX + "BTN_ResetSignal", lx, y, 130, 15, "RESET SIGNAL", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "BTN_ResetSignal", lx - 10, y, 130, 15, "RESET SIGNAL", HUD_COL_ACTION);
 
     // === Separator 4 ===
     y += HUD_ROW_H + 1;
@@ -417,38 +417,38 @@ void CreateHUD()
     // Risk % stepper row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Risk_Lbl",   lx, y, "Risk %",     HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "STP_Risk_Dn",     lx + 90,  y, 18, 14, "v", HUD_COL_ACTION);
-    HUD_CreateLabel (HUD_PREFIX + "STP_Risk_Val",    lx + 112, y, "1.00%", HUD_COL_VALUE);
-    HUD_CreateButton(HUD_PREFIX + "STP_Risk_Up",     lx + 152, y, 18, 14, "^", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "STP_Risk_Dn",     140,  y, 18, 14, "v", HUD_COL_ACTION);
+    HUD_CreateLabel (HUD_PREFIX + "STP_Risk_Val",    90, y, "1.00%", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
+    HUD_CreateButton(HUD_PREFIX + "STP_Risk_Up",     58, y, 18, 14, "^", HUD_COL_ACTION);
 
     // Max Spread stepper row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Spread_Lbl", lx, y, "Max Spread", HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "STP_Spread_Dn",  lx + 90,  y, 18, 14, "v", HUD_COL_ACTION);
-    HUD_CreateLabel (HUD_PREFIX + "STP_Spread_Val",  lx + 112, y, "50pt",  HUD_COL_VALUE);
-    HUD_CreateButton(HUD_PREFIX + "STP_Spread_Up",   lx + 152, y, 18, 14, "^", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "STP_Spread_Dn",  140,  y, 18, 14, "v", HUD_COL_ACTION);
+    HUD_CreateLabel (HUD_PREFIX + "STP_Spread_Val",  90, y, "50pt",  HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
+    HUD_CreateButton(HUD_PREFIX + "STP_Spread_Up",   58, y, 18, 14, "^", HUD_COL_ACTION);
 
     // Max DD% stepper row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_DD_Lbl",     lx, y, "Max DD%",    HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "STP_DD_Dn",       lx + 90,  y, 18, 14, "v", HUD_COL_ACTION);
-    HUD_CreateLabel (HUD_PREFIX + "STP_DD_Val",      lx + 112, y, "5.0%",  HUD_COL_VALUE);
-    HUD_CreateButton(HUD_PREFIX + "STP_DD_Up",       lx + 152, y, 18, 14, "^", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "STP_DD_Dn",       140,  y, 18, 14, "v", HUD_COL_ACTION);
+    HUD_CreateLabel (HUD_PREFIX + "STP_DD_Val",      90, y, "5.0%",  HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
+    HUD_CreateButton(HUD_PREFIX + "STP_DD_Up",       58, y, 18, 14, "^", HUD_COL_ACTION);
 
     // Trail Stop toggle row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Trail_Lbl",   lx, y, "Trail Stop", HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "BTN_TrailStop",    lx + 90,  y, 50, 14, "ON", HUD_COL_ON);
+    HUD_CreateButton(HUD_PREFIX + "BTN_TrailStop",    90,  y, 50, 14, "ON", HUD_COL_ON);
 
     // Partial Close toggle row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Part_Lbl",    lx, y, "Part. Close", HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "BTN_PartialClose", lx + 90,  y, 50, 14, "ON", HUD_COL_ON);
+    HUD_CreateButton(HUD_PREFIX + "BTN_PartialClose", 90,  y, 50, 14, "ON", HUD_COL_ON);
 
     // Pause Entries toggle row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Pause_Lbl",   lx, y, "Pause Entry", HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "BTN_Pause",        lx + 90,  y, 60, 14, "PAUSE", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "BTN_Pause",        100,  y, 60, 14, "PAUSE", HUD_COL_ACTION);
 
     ChartRedraw(0);
 }
@@ -467,6 +467,20 @@ void UpdateHUD()
     if (!g_hudForceUpdate && TimeCurrent() - lastUpdate < 1) return;
     g_hudForceUpdate = false;
     lastUpdate = TimeCurrent();
+
+    // === DYNAMIC BG PANEL FOCUS / UNFOCUS ===
+    if (TimeLocal() - g_lastHudInteractionTime > 10)
+    {
+        // Unfocused state (Muted background, no borders)
+        ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BGCOLOR, C'8,8,10');
+        ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_COLOR,   clrNONE);
+    }
+    else
+    {
+        // Focused state (Solid background, highlighted borders)
+        ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BGCOLOR, HUD_COL_BG);
+        ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_COLOR,   HUD_COL_BORDER);
+    }
 
     // === HEADER ===
     string autoStr = g_runtimeAutoTrading ? "ON " : "OFF";
@@ -547,15 +561,25 @@ void UpdateHUD()
         default:                      sigStr = "NONE";      break;
     }
     ObjectSetString(0, HUD_PREFIX + "SIG_Status_Val", OBJPROP_TEXT, sigStr);
-    ObjectSetString(0, HUD_PREFIX + "SIG_Conf_Val",   OBJPROP_TEXT,
-                    StringFormat("%.0f", g_confirmationEngine.GetConfidenceScore()));
 
-    EConfirmationDirection confDir = g_confirmationEngine.GetDirection();
-    string confDirStr = (confDir == CONFIRM_DIR_BULLISH) ? "BUY"
-                      : (confDir == CONFIRM_DIR_BEARISH) ? "SELL" : "NONE";
-    ObjectSetString(0, HUD_PREFIX + "SIG_Dir_Val", OBJPROP_TEXT, confDirStr);
-    ObjectSetString(0, HUD_PREFIX + "SIG_DOL_Val", OBJPROP_TEXT,
-                    StringFormat("%.*f", _Digits, g_objectiveEngine.GetDolPrice()));
+    if (sigState == ENTRY_STATE_NONE)
+    {
+        ObjectSetString(0, HUD_PREFIX + "SIG_Conf_Val", OBJPROP_TEXT, "---");
+        ObjectSetString(0, HUD_PREFIX + "SIG_Dir_Val",  OBJPROP_TEXT, "NONE");
+        ObjectSetString(0, HUD_PREFIX + "SIG_DOL_Val",  OBJPROP_TEXT, "---");
+    }
+    else
+    {
+        ObjectSetString(0, HUD_PREFIX + "SIG_Conf_Val",   OBJPROP_TEXT,
+                        StringFormat("%.0f", g_confirmationEngine.GetConfidenceScore()));
+
+        EConfirmationDirection confDir = g_confirmationEngine.GetDirection();
+        string confDirStr = (confDir == CONFIRM_DIR_BULLISH) ? "BUY"
+                          : (confDir == CONFIRM_DIR_BEARISH) ? "SELL" : "NONE";
+        ObjectSetString(0, HUD_PREFIX + "SIG_Dir_Val", OBJPROP_TEXT, confDirStr);
+        ObjectSetString(0, HUD_PREFIX + "SIG_DOL_Val", OBJPROP_TEXT,
+                        StringFormat("%.*f", _Digits, g_objectiveEngine.GetDolPrice()));
+    }
 
     // === RISK SETTINGS ===
     ObjectSetString(0, HUD_PREFIX + "STP_Risk_Val",   OBJPROP_TEXT, StringFormat("%.2f%%", g_runtimeRiskPercent));
@@ -778,6 +802,7 @@ int OnInit()
     g_runtimeRiskPercent  = InpDefaultRisk;
     g_runtimeMaxSpread    = InpMaxSpreadPoints;
     g_runtimeMaxDailyDD   = InpMaxDailyDrawdown;
+    g_lastHudInteractionTime = TimeLocal();
 
     //--- 9. Build on-chart HUD
     CreateHUD();
@@ -1231,6 +1256,9 @@ void OnTimer()
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
 {
     if (id != CHARTEVENT_OBJECT_CLICK) return;
+
+    // Reset HUD user inactivity timer
+    g_lastHudInteractionTime = TimeLocal();
 
     // === Auto-Trade Toggle ===
     if (sparam == HUD_PREFIX + "BTN_AutoTrade")
