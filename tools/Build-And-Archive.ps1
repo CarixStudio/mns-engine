@@ -73,6 +73,14 @@ $TestHarnessRelPath     = "Experts\MNS_TestHarness\MNS_TestHarness.mq5"
 $TestHarnessPath        = Join-Path $ProjectRoot $TestHarnessRelPath  # repo copy (source)
 $DeployedTestHarness    = $null  # populated in Assert-Prerequisites from MT5 install path
 
+$StateTestsRelPath      = "Experts\MNS_TestHarness\MNS_StateTransitionTests.mq5"
+$StateTestsPath         = Join-Path $ProjectRoot $StateTestsRelPath
+$DeployedStateTests     = $null
+
+$FuzzTestsRelPath       = "Experts\MNS_TestHarness\MNS_FuzzTests.mq5"
+$FuzzTestsPath          = Join-Path $ProjectRoot $FuzzTestsRelPath
+$DeployedFuzzTests      = $null
+
 # Path of the indicator source file relative to the Indicators folder.
 # Compiled alongside the TestHarness so the .ex5 is available in MT5 Navigator.
 $IndicatorRelPath       = "Indicators\MNS_Indicator.mq5"
@@ -191,7 +199,7 @@ function Get-MT5Installations {
         if (-not (Test-Path $mql5Dir))    { continue }
         if (-not (Test-Path $originFile)) { continue }
 
-        $installPath = (Get-Content $originFile -Raw).Trim()
+        $installPath = (Get-Content $originFile -Encoding Unicode -Raw).Trim()
         $terminalExe = Join-Path $installPath "terminal64.exe"
 
         if (-not (Test-Path $terminalExe)) { continue }
@@ -278,6 +286,12 @@ function Assert-Prerequisites {
 
     $script:DeployedEA = Join-Path $firstInst.MQL5Dir $EARelPath
     Write-Log "Deploy target (Expert)      : $($script:DeployedEA)"
+
+    $script:DeployedStateTests = Join-Path $firstInst.MQL5Dir $StateTestsRelPath
+    Write-Log "Deploy target (StateTests)  : $($script:DeployedStateTests)"
+
+    $script:DeployedFuzzTests = Join-Path $firstInst.MQL5Dir $FuzzTestsRelPath
+    Write-Log "Deploy target (FuzzTests)   : $($script:DeployedFuzzTests)"
 
     # MetaEditor must be locatable (skip check if -SkipCompile).
     if (-not $SkipCompile) {
@@ -556,6 +570,107 @@ function Invoke-CompileEA {
 
 }
 
+# -- Step 1e: Compile State Transition Tests -----------------------------------
+
+function Invoke-CompileStateTests {
+    <#
+    .SYNOPSIS
+        Runs MetaEditor64.exe in CLI mode to compile MNS_StateTransitionTests.mq5.
+        Compiles from the MT5 MQL5 Experts path.
+        Exits with code 1 if compilation fails.
+    #>
+
+    Write-Banner "Step 1e - Compile State Transition Tests"
+
+    $compilePath     = $script:DeployedStateTests
+    $compilerLogPath = [System.IO.Path]::ChangeExtension($compilePath, ".log")
+
+    if (-not (Test-Path $compilePath)) {
+        Exit-WithError "Deployed state tests not found: $compilePath`n  Run deploy.ps1 first."
+    }
+
+    Write-Log "Compiling: $compilePath"
+    Write-Host ""
+
+    $compileArgs = @(
+        "/compile:`"$compilePath`"",
+        "/log:`"$compilerLogPath`""
+    )
+
+    $process = Start-Process -FilePath $script:MetaEditorExe `
+                             -ArgumentList $compileArgs `
+                             -Wait -PassThru -NoNewWindow
+
+    # Always show compiler output so warnings are visible even on success.
+    $compilerOutput = ""
+    if (Test-Path $compilerLogPath) {
+        $compilerOutput = Get-Content $compilerLogPath -Raw
+        if ($compilerOutput) {
+            Write-Host "--- Compiler Output ---"
+            Write-Host $compilerOutput
+            Write-Host "-----------------------"
+            Write-Host ""
+        }
+    }
+
+    if ($compilerOutput -match "Result:\s+0 errors") {
+        Write-Log "State Transition Tests compilation succeeded (0 errors, 0 warnings)." "SUCCESS"
+        return
+    }
+
+    Exit-WithError "State Transition Tests compilation FAILED. Check output above. Log: $compilerLogPath"
+}
+
+# -- Step 1f: Compile Fuzz Tests -----------------------------------------------
+
+function Invoke-CompileFuzzTests {
+    <#
+    .SYNOPSIS
+        Runs MetaEditor64.exe in CLI mode to compile MNS_FuzzTests.mq5.
+        Compiles from the MT5 MQL5 Experts path.
+        Exits with code 1 if compilation fails.
+    #>
+
+    Write-Banner "Step 1f - Compile Fuzz Tests"
+
+    $compilePath     = $script:DeployedFuzzTests
+    $compilerLogPath = [System.IO.Path]::ChangeExtension($compilePath, ".log")
+
+    if (-not (Test-Path $compilePath)) {
+        Exit-WithError "Deployed fuzz tests not found: $compilePath`n  Run deploy.ps1 first."
+    }
+
+    Write-Log "Compiling: $compilePath"
+    Write-Host ""
+
+    $compileArgs = @(
+        "/compile:`"$compilePath`"",
+        "/log:`"$compilerLogPath`""
+    )
+
+    $process = Start-Process -FilePath $script:MetaEditorExe `
+                             -ArgumentList $compileArgs `
+                             -Wait -PassThru -NoNewWindow
+
+    $compilerOutput = ""
+    if (Test-Path $compilerLogPath) {
+        $compilerOutput = Get-Content $compilerLogPath -Raw
+        if ($compilerOutput) {
+            Write-Host "--- Compiler Output ---"
+            Write-Host $compilerOutput
+            Write-Host "-----------------------"
+            Write-Host ""
+        }
+    }
+
+    if ($compilerOutput -match "Result:\s+0 errors") {
+        Write-Log "Fuzz Tests compilation succeeded (0 errors, 0 warnings)." "SUCCESS"
+        return
+    }
+
+    Exit-WithError "Fuzz Tests compilation FAILED. Check output above. Log: $compilerLogPath"
+}
+
 # -- Step 2: Wait for Test Harness ---------------------------------------------
 
 function Invoke-WaitForTest {
@@ -681,6 +796,7 @@ function Write-BuildReport {
         Write-Host "   [OK] MNS_Indicator"   -ForegroundColor Green
         Write-Host "   [OK] MNS_Indicator_ExecutionOnly" -ForegroundColor Green
         Write-Host "   [OK] MNS_EA"          -ForegroundColor Green
+        Write-Host "   [OK] MNS_StateTransitionTests" -ForegroundColor Green
         Write-Host ""
     }
 
@@ -768,6 +884,8 @@ function Main {
         Invoke-CompileIndicator
         Invoke-CompileIndicatorExecOnly
         Invoke-CompileEA
+        Invoke-CompileStateTests
+        Invoke-CompileFuzzTests
     }
     else {
         Write-Log "Compilation skipped (-SkipCompile)." "WARN"

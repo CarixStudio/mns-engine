@@ -55,7 +55,7 @@ function Get-MT5Installations {
             $isValid = $false
             $installPath = ""
             if (Test-Path $originFile) {
-                $installPath = (Get-Content $originFile -Raw).Trim()
+                $installPath = (Get-Content $originFile -Encoding Unicode -Raw).Trim()
                 $terminalExe = Join-Path $installPath "terminal64.exe"
                 if (Test-Path $terminalExe) {
                     $isValid = $true
