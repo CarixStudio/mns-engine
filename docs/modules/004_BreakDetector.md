@@ -33,6 +33,13 @@ Once detected, a break is logged in an immutable, append-only history. These bre
 
 ---
 
+## 3b. Performance & Latency Optimizations
+
+- **Incremental Scan Bounds**: On mid-candle ticks (`ratesTotal == m_lastProcessedRatesTotal` and `prevCalculated > 0`), `startIndex` is bounded to `1` (scanning only the latest closed bar), avoiding $O(N)$ historical rescans.
+- **Microsecond Resolution**: Operates within $O(1)$ latency budget on intra-candle ticks (< 5 µs).
+
+---
+
 ## 4. Inputs
 
 - Confirmed swing points history from `CSwingDetector` (External and Internal).

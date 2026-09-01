@@ -87,20 +87,21 @@ input int    InpMaxHistoryBars   = 1000;     // History Bars to Analyze
 ### 4.3 OnTick()
 1. Check if history bars are ready. Ensure the chart has at least `InpMaxHistoryBars` bars loaded.
 2. Retrieve current bar price arrays (Open, High, Low, Close, Time, Volume) up to `InpMaxHistoryBars`.
-3. Execute the Update pipeline of the 12 engines in dependency sequence:
+3. Compute `prevCalculated` incrementally: track `s_lastBarTime`. If `time[0] == s_lastBarTime` (mid-candle tick), set `prevCalculated = copied - 1`; else set `prevCalculated = 0` (`isNewCandle = true`).
+4. Execute the Update pipeline of the 12 engines in dependency sequence:
    * Volatility ATR calculation.
    * Swing detection.
    * Market structure classification.
-   * Structural break detection.
+   * Structural break detection (optimized $O(1)$ mid-candle scan).
    * Order flow evaluation.
    * Delivery structure analysis.
    * Liquidity pool assessment.
-   * Points of interest mapping.
+   * Points of interest mapping (conditionally executed on new candles: `isNewCandle || prevCalculated == 0`).
    * Objectives (DOL) selection.
    * Confirmation state evaluation.
    * Entry trigger checking.
    * Trade risk parameter calculations.
-4. Log any newly triggered signals to the MT5 Terminal console (Terminal print & experts tab) for testing.
+5. Log any newly triggered signals to the MT5 Terminal console (Terminal print & experts tab) for testing.
 
 ---
 

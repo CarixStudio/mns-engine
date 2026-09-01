@@ -25,9 +25,10 @@ Status: Approved
    - Return false if the number of bars is less than the minimum required (e.g. 2).
 
 2. **Determine Scan Range**:
-   - To avoid O(N²) performance in hot paths, we only scan new bars since the last update.
+   - To avoid $O(N^2)$ performance in hot paths, we only scan new bars since the last update.
    - `startIndex` is determined by comparing `ratesTotal` with `m_lastProcessedRatesTotal`.
-   - Scan runs from the oldest unprocessed bar index to the newest closed bar (index 1). Index 0 (live candle) is never evaluated for breaks.
+   - On mid-candle ticks (`ratesTotal == m_lastProcessedRatesTotal` and `prevCalculated > 0`), `startIndex` is set to `1` to scan only the latest closed bar, avoiding redundant full-history rescans.
+   - On new candle opens (`ratesTotal > m_lastProcessedRatesTotal` or `prevCalculated == 0`), `startIndex` is set to `ratesTotal - 1` to scan all unprocessed closed bars chronologically. Index 0 (live candle) is never evaluated for breaks.
 
 3. **BOS and iBOS Detection**:
    - For every unprocessed bar `i` from oldest to newest:
