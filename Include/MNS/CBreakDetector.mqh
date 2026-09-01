@@ -388,8 +388,12 @@ bool CBreakDetector::Update(const CSwingDetector &swingDetector,
         return false;
 
     // Scan backwards from oldest to newest closed bars to maintain chronological break history
-    int startIndex = (prevCalculated == 0 || m_lastProcessedRatesTotal == 0) ? (ratesTotal - 1) : (m_lastProcessedRatesTotal - 1);
-    
+    int startIndex = 1;
+    if (prevCalculated == 0 || m_lastProcessedRatesTotal == 0 || ratesTotal > m_lastProcessedRatesTotal)
+    {
+        startIndex = ratesTotal - 1;
+    }
+
     // Safety boundaries
     if (startIndex >= ratesTotal)
         startIndex = ratesTotal - 1;
