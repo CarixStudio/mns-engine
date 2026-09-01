@@ -81,6 +81,14 @@ $FuzzTestsRelPath       = "Experts\MNS_TestHarness\MNS_FuzzTests.mq5"
 $FuzzTestsPath          = Join-Path $ProjectRoot $FuzzTestsRelPath
 $DeployedFuzzTests      = $null
 
+$RegressionTestsRelPath   = "Experts\MNS_TestHarness\MNS_RegressionTests.mq5"
+$RegressionTestsPath      = Join-Path $ProjectRoot $RegressionTestsRelPath
+$DeployedRegressionTests = $null
+
+$BrokerErrorTestsRelPath   = "Experts\MNS_TestHarness\MNS_BrokerErrorTests.mq5"
+$BrokerErrorTestsPath      = Join-Path $ProjectRoot $BrokerErrorTestsRelPath
+$DeployedBrokerErrorTests = $null
+
 # Path of the indicator source file relative to the Indicators folder.
 # Compiled alongside the TestHarness so the .ex5 is available in MT5 Navigator.
 $IndicatorRelPath       = "Indicators\MNS_Indicator.mq5"
@@ -292,6 +300,12 @@ function Assert-Prerequisites {
 
     $script:DeployedFuzzTests = Join-Path $firstInst.MQL5Dir $FuzzTestsRelPath
     Write-Log "Deploy target (FuzzTests)   : $($script:DeployedFuzzTests)"
+
+    $script:DeployedRegressionTests = Join-Path $firstInst.MQL5Dir $RegressionTestsRelPath
+    Write-Log "Deploy target (Regression)  : $($script:DeployedRegressionTests)"
+
+    $script:DeployedBrokerErrorTests = Join-Path $firstInst.MQL5Dir $BrokerErrorTestsRelPath
+    Write-Log "Deploy target (BrokerError) : $($script:DeployedBrokerErrorTests)"
 
     # MetaEditor must be locatable (skip check if -SkipCompile).
     if (-not $SkipCompile) {
@@ -671,6 +685,106 @@ function Invoke-CompileFuzzTests {
     Exit-WithError "Fuzz Tests compilation FAILED. Check output above. Log: $compilerLogPath"
 }
 
+# -- Step 1g: Compile Regression Tests -----------------------------------------
+
+function Invoke-CompileRegressionTests {
+    <#
+    .SYNOPSIS
+        Runs MetaEditor64.exe in CLI mode to compile MNS_RegressionTests.mq5.
+        Compiles from the MT5 MQL5 Experts path.
+        Exits with code 1 if compilation fails.
+    #>
+
+    Write-Banner "Step 1g - Compile Regression Tests"
+
+    $compilePath     = $script:DeployedRegressionTests
+    $compilerLogPath = [System.IO.Path]::ChangeExtension($compilePath, ".log")
+
+    if (-not (Test-Path $compilePath)) {
+        Exit-WithError "Deployed regression tests not found: $compilePath`n  Run deploy.ps1 first."
+    }
+
+    Write-Log "Compiling: $compilePath"
+    Write-Host ""
+
+    $compileArgs = @(
+        "/compile:`"$compilePath`"",
+        "/log:`"$compilerLogPath`""
+    )
+
+    $process = Start-Process -FilePath $script:MetaEditorExe `
+                             -ArgumentList $compileArgs `
+                             -Wait -PassThru -NoNewWindow
+
+    $compilerOutput = ""
+    if (Test-Path $compilerLogPath) {
+        $compilerOutput = Get-Content $compilerLogPath -Raw
+        if ($compilerOutput) {
+            Write-Host "--- Compiler Output ---"
+            Write-Host $compilerOutput
+            Write-Host "-----------------------"
+            Write-Host ""
+        }
+    }
+
+    if ($compilerOutput -match "Result:\s+0 errors") {
+        Write-Log "Regression Tests compilation succeeded (0 errors, 0 warnings)." "SUCCESS"
+        return
+    }
+
+    Exit-WithError "Regression Tests compilation FAILED. Check output above. Log: $compilerLogPath"
+}
+
+# -- Step 1h: Compile Broker Error Tests ---------------------------------------
+
+function Invoke-CompileBrokerErrorTests {
+    <#
+    .SYNOPSIS
+        Runs MetaEditor64.exe in CLI mode to compile MNS_BrokerErrorTests.mq5.
+        Compiles from the MT5 MQL5 Experts path.
+        Exits with code 1 if compilation fails.
+    #>
+
+    Write-Banner "Step 1h - Compile Broker Error Tests"
+
+    $compilePath     = $script:DeployedBrokerErrorTests
+    $compilerLogPath = [System.IO.Path]::ChangeExtension($compilePath, ".log")
+
+    if (-not (Test-Path $compilePath)) {
+        Exit-WithError "Deployed broker error tests not found: $compilePath`n  Run deploy.ps1 first."
+    }
+
+    Write-Log "Compiling: $compilePath"
+    Write-Host ""
+
+    $compileArgs = @(
+        "/compile:`"$compilePath`"",
+        "/log:`"$compilerLogPath`""
+    )
+
+    $process = Start-Process -FilePath $script:MetaEditorExe `
+                             -ArgumentList $compileArgs `
+                             -Wait -PassThru -NoNewWindow
+
+    $compilerOutput = ""
+    if (Test-Path $compilerLogPath) {
+        $compilerOutput = Get-Content $compilerLogPath -Raw
+        if ($compilerOutput) {
+            Write-Host "--- Compiler Output ---"
+            Write-Host $compilerOutput
+            Write-Host "-----------------------"
+            Write-Host ""
+        }
+    }
+
+    if ($compilerOutput -match "Result:\s+0 errors") {
+        Write-Log "Broker Error Tests compilation succeeded (0 errors, 0 warnings)." "SUCCESS"
+        return
+    }
+
+    Exit-WithError "Broker Error Tests compilation FAILED. Check output above. Log: $compilerLogPath"
+}
+
 # -- Step 2: Wait for Test Harness ---------------------------------------------
 
 function Invoke-WaitForTest {
@@ -886,6 +1000,8 @@ function Main {
         Invoke-CompileEA
         Invoke-CompileStateTests
         Invoke-CompileFuzzTests
+        Invoke-CompileRegressionTests
+        Invoke-CompileBrokerErrorTests
     }
     else {
         Write-Log "Compilation skipped (-SkipCompile)." "WARN"
