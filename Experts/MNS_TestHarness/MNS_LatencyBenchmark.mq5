@@ -197,21 +197,23 @@ int OnInit()
         confEng.Update(swingDet, structEng, breakDet, ofEng, delEng, liqEng, poiEng, objEng, high, low, close, open, time, barsCount, 0, atr14);
     }
 
-    // --- BENCHMARK L-01: Full OnTick Pipeline (Normal Tick, no POI update) ---
+    // --- BENCHMARK L-01: Full OnTick Pipeline (Normal Tick, mid-candle tick update) ---
     double l01Us[];
     ArrayResize(l01Us, totalIters);
+    int midCandlePrevCalc = barsCount - 1;
+
     for (int i = 0; i < totalIters; i++)
     {
         ulong start = GetMicrosecondCount();
 
-        swingDet.Update(high, low, time, barsCount, 0);
+        swingDet.Update(high, low, time, barsCount, midCandlePrevCalc);
         structEng.Update(swingDet, atr14);
-        breakDet.Update(swingDet, structEng, high, low, close, open, time, barsCount, 0, atr14);
-        ofEng.Update(swingDet, structEng, breakDet, high, low, close, open, time, barsCount, 0, atr14);
-        delEng.Update(swingDet, structEng, breakDet, ofEng, high, low, close, open, time, barsCount, 0, atr14, 0.0);
-        liqEng.Update(swingDet, delEng, high, low, close, open, time, barsCount, 0, atr14, minBreakDist);
-        objEng.Update(swingDet, structEng, breakDet, ofEng, delEng, liqEng, poiEng, high, low, close, open, time, barsCount, 0, atr14);
-        confEng.Update(swingDet, structEng, breakDet, ofEng, delEng, liqEng, poiEng, objEng, high, low, close, open, time, barsCount, 0, atr14);
+        breakDet.Update(swingDet, structEng, high, low, close, open, time, barsCount, midCandlePrevCalc, atr14);
+        ofEng.Update(swingDet, structEng, breakDet, high, low, close, open, time, barsCount, midCandlePrevCalc, atr14);
+        delEng.Update(swingDet, structEng, breakDet, ofEng, high, low, close, open, time, barsCount, midCandlePrevCalc, atr14, 0.0);
+        liqEng.Update(swingDet, delEng, high, low, close, open, time, barsCount, midCandlePrevCalc, atr14, minBreakDist);
+        objEng.Update(swingDet, structEng, breakDet, ofEng, delEng, liqEng, poiEng, high, low, close, open, time, barsCount, midCandlePrevCalc, atr14);
+        confEng.Update(swingDet, structEng, breakDet, ofEng, delEng, liqEng, poiEng, objEng, high, low, close, open, time, barsCount, midCandlePrevCalc, atr14);
 
         l01Us[i] = (double)(GetMicrosecondCount() - start);
     }

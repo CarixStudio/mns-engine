@@ -1370,8 +1370,23 @@ void OnTick()
     }
 
     //--- 5. Execute core engine update pipeline in sequential DAG order
+    static datetime s_lastBarTime = 0;
+    int prevCalculated = 0;
+    bool isNewCandle = false;
+
+    if (time[0] == s_lastBarTime)
+    {
+        prevCalculated = copied - 1;
+    }
+    else
+    {
+        s_lastBarTime = time[0];
+        prevCalculated = 0;
+        isNewCandle = true;
+    }
+
     // 1. Swing Detection
-    g_swingDetector.Update(high, low, time, copied, 0);
+    g_swingDetector.Update(high, low, time, copied, prevCalculated);
 
     // 2. Market Structure
     g_structureEngine.Update(g_swingDetector, atr14);
@@ -1379,48 +1394,51 @@ void OnTick()
     // 3. Structural Break Detection
     g_breakDetector.Update(g_swingDetector, g_structureEngine,
                            high, low, close, open, time,
-                           copied, 0, atr14);
+                           copied, prevCalculated, atr14);
 
     // 4. Order Flow Evaluation
     g_orderFlowEngine.Update(g_swingDetector, g_structureEngine, g_breakDetector,
                             high, low, close, open, time,
-                            copied, 0, atr14);
+                            copied, prevCalculated, atr14);
 
     // 5. Delivery Structure Analysis
     double prevDolPrice = g_objectiveEngine.GetDolPrice();
     g_deliveryEngine.Update(g_swingDetector, g_structureEngine, g_breakDetector, g_orderFlowEngine,
                             high, low, close, open, time,
-                            copied, 0, atr14, prevDolPrice);
+                            copied, prevCalculated, atr14, prevDolPrice);
 
     // 6. Liquidity Assessment
     g_liquidityEngine.Update(g_swingDetector, g_deliveryEngine,
                              high, low, close, open, time,
-                             copied, 0, atr14, minBreakDist);
+                             copied, prevCalculated, atr14, minBreakDist);
 
-    // 7. POI Mapping
-    g_poiEngine.Update(g_swingDetector, g_structureEngine, g_breakDetector,
-                       g_liquidityEngine, g_deliveryEngine,
-                       high, low, close, open, time,
-                       copied, 0, atr14);
+    // 7. POI Mapping (Refresh zones on new candle or initial load)
+    if (isNewCandle || prevCalculated == 0)
+    {
+        g_poiEngine.Update(g_swingDetector, g_structureEngine, g_breakDetector,
+                           g_liquidityEngine, g_deliveryEngine,
+                           high, low, close, open, time,
+                           copied, prevCalculated, atr14);
+    }
 
     // 8. Objectives (DOL) Selection
     g_objectiveEngine.Update(g_swingDetector, g_structureEngine, g_breakDetector,
                              g_orderFlowEngine, g_deliveryEngine, g_liquidityEngine, g_poiEngine,
                              high, low, close, open, time,
-                             copied, 0, atr14);
+                             copied, prevCalculated, atr14);
 
     // 9. Confirmation State Evaluation
     g_confirmationEngine.Update(g_swingDetector, g_structureEngine, g_breakDetector,
                                  g_orderFlowEngine, g_deliveryEngine, g_liquidityEngine, g_poiEngine, g_objectiveEngine,
                                  high, low, close, open, time,
-                                 copied, 0, atr14);
+                                 copied, prevCalculated, atr14);
 
     // 10. Entry Signal Triggers
     double currentSpread = (double)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
     g_entryEngine.Update(g_confirmationEngine, g_objectiveEngine, g_structureEngine,
                          g_deliveryEngine, g_poiEngine,
                          high, low, close, open, time,
-                         copied, 0, currentSpread);
+                         copied, prevCalculated, currentSpread);
 
     //--- 6. Check Active Signal Triggers & Execute Trade Pipeline
     //        Pause Entries: skip entry block entirely when pause is active
