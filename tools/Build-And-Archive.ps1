@@ -89,6 +89,10 @@ $BrokerErrorTestsRelPath   = "Experts\MNS_TestHarness\MNS_BrokerErrorTests.mq5"
 $BrokerErrorTestsPath      = Join-Path $ProjectRoot $BrokerErrorTestsRelPath
 $DeployedBrokerErrorTests = $null
 
+$LatencyBenchmarkRelPath   = "Experts\MNS_TestHarness\MNS_LatencyBenchmark.mq5"
+$LatencyBenchmarkPath      = Join-Path $ProjectRoot $LatencyBenchmarkRelPath
+$DeployedLatencyBenchmark = $null
+
 # Path of the indicator source file relative to the Indicators folder.
 # Compiled alongside the TestHarness so the .ex5 is available in MT5 Navigator.
 $IndicatorRelPath       = "Indicators\MNS_Indicator.mq5"
@@ -306,6 +310,9 @@ function Assert-Prerequisites {
 
     $script:DeployedBrokerErrorTests = Join-Path $firstInst.MQL5Dir $BrokerErrorTestsRelPath
     Write-Log "Deploy target (BrokerError) : $($script:DeployedBrokerErrorTests)"
+
+    $script:DeployedLatencyBenchmark = Join-Path $firstInst.MQL5Dir $LatencyBenchmarkRelPath
+    Write-Log "Deploy target (LatencyBenchmark) : $($script:DeployedLatencyBenchmark)"
 
     # MetaEditor must be locatable (skip check if -SkipCompile).
     if (-not $SkipCompile) {
@@ -785,6 +792,56 @@ function Invoke-CompileBrokerErrorTests {
     Exit-WithError "Broker Error Tests compilation FAILED. Check output above. Log: $compilerLogPath"
 }
 
+# -- Step 1i: Compile Latency Benchmark ----------------------------------------
+
+function Invoke-CompileLatencyBenchmark {
+    <#
+    .SYNOPSIS
+        Runs MetaEditor64.exe in CLI mode to compile MNS_LatencyBenchmark.mq5.
+        Compiles from the MT5 MQL5 Experts path.
+        Exits with code 1 if compilation fails.
+    #>
+
+    Write-Banner "Step 1i - Compile Latency Benchmark"
+
+    $compilePath     = $script:DeployedLatencyBenchmark
+    $compilerLogPath = [System.IO.Path]::ChangeExtension($compilePath, ".log")
+
+    if (-not (Test-Path $compilePath)) {
+        Exit-WithError "Deployed latency benchmark tests not found: $compilePath`n  Run deploy.ps1 first."
+    }
+
+    Write-Log "Compiling: $compilePath"
+    Write-Host ""
+
+    $compileArgs = @(
+        "/compile:`"$compilePath`"",
+        "/log:`"$compilerLogPath`""
+    )
+
+    $process = Start-Process -FilePath $script:MetaEditorExe `
+                             -ArgumentList $compileArgs `
+                             -Wait -PassThru -NoNewWindow
+
+    $compilerOutput = ""
+    if (Test-Path $compilerLogPath) {
+        $compilerOutput = Get-Content $compilerLogPath -Raw
+        if ($compilerOutput) {
+            Write-Host "--- Compiler Output ---"
+            Write-Host $compilerOutput
+            Write-Host "-----------------------"
+            Write-Host ""
+        }
+    }
+
+    if ($compilerOutput -match "Result:\s+0 errors") {
+        Write-Log "Latency Benchmark compilation succeeded (0 errors, 0 warnings)." "SUCCESS"
+        return
+    }
+
+    Exit-WithError "Latency Benchmark compilation FAILED. Check output above. Log: $compilerLogPath"
+}
+
 # -- Step 2: Wait for Test Harness ---------------------------------------------
 
 function Invoke-WaitForTest {
@@ -1002,6 +1059,7 @@ function Main {
         Invoke-CompileFuzzTests
         Invoke-CompileRegressionTests
         Invoke-CompileBrokerErrorTests
+        Invoke-CompileLatencyBenchmark
     }
     else {
         Write-Log "Compilation skipped (-SkipCompile)." "WARN"
