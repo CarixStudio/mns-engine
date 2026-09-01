@@ -116,6 +116,15 @@ class CObjectiveEngine {
         return m_candidatesCount;
     }
     bool GetCandidate(int index, SDolDefinition& outCandidate) const;
+
+    /// @brief Overrides the active DOL target for testing.
+    void OverrideDol(bool active, double price, EDolType type, double score)
+    {
+        m_activeDol.active = active;
+        m_activeDol.price = price;
+        m_activeDol.type = type;
+        m_activeDol.score = score;
+    }
 };
 
 //+------------------------------------------------------------------+

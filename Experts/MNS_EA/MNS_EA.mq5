@@ -51,6 +51,7 @@ input int    InpGmtOffset        = 0;        // GMT Offset Hours
 input double InpMaxSpreadPoints  = 50.0;     // Max Allowed Spread (Points)
 input double InpDefaultRisk      = 1.0;      // Default Risk % Per Trade
 input bool   InpDebugLogging     = false;    // Verbose Debug Logging
+input bool   InpAutoDetectPairs  = true;     // Auto-Detect Optimized Presets
 
 //--- Strategy Logic Settings (Exposed for Backtest Optimization)
 input int    InpExternalDepth           = 15;       // External Swing Depth (10-100)
@@ -105,18 +106,19 @@ double g_runtimeMaxDailyDD   = 5.0;
 datetime g_lastHudInteractionTime = 0;
 
 //+------------------------------------------------------------------+
-//| HUD Constants                                                    |
+//| HUD Constants & Dragging State                                   |
 //+------------------------------------------------------------------+
 #define HUD_PREFIX       "MNS_EA_HUD_"
-#define HUD_CORNER       CORNER_RIGHT_UPPER
-#define HUD_X            250       // px from right edge
-#define HUD_Y_START      20        // px from top
-#define HUD_ROW_H        18        // px per row
-#define HUD_WIDTH        220       // panel width px
+#define HUD_CORNER       CORNER_LEFT_UPPER
+#define HUD_X            20
+#define HUD_Y_START      20
+#define HUD_ROW_H        18
+#define HUD_WIDTH        240
 #define HUD_FONT         "Consolas"
 #define HUD_FONT_SIZE    8
-#define HUD_COL_BG       C'18,18,24'
-#define HUD_COL_BORDER   C'60,60,80'
+#define HUD_COL_BG       C'14,15,20'      // Solid dark charcoal black background
+#define HUD_COL_BORDER   C'45,50,65'      // Sleek dark slate border
+#define HUD_COL_HDR_BG   C'24,26,35'      // Header bar background
 #define HUD_COL_HEADER   C'120,120,200'
 #define HUD_COL_LABEL    C'140,140,155'
 #define HUD_COL_VALUE    clrWhite
@@ -124,6 +126,15 @@ datetime g_lastHudInteractionTime = 0;
 #define HUD_COL_OFF      C'110,30,30'
 #define HUD_COL_ACTION   C'50,80,130'
 #define HUD_COL_WARN     C'180,100,0'
+
+// Dragging & position persistence state
+int  g_hudX = 20;
+int  g_hudY = 20;
+bool g_hudIsDragging = false;
+int  g_hudDragMouseX = 0;
+int  g_hudDragMouseY = 0;
+int  g_hudStartPosX  = 0;
+int  g_hudStartPosY  = 0;
 
 //+------------------------------------------------------------------+
 //| Helper: Check if an open position exists for symbol & magic      |
@@ -289,30 +300,293 @@ void HUD_CreateButton(const string name, const int xDist, const int yDist,
 }
 
 //+------------------------------------------------------------------+
+//| UpdateHUDLayoutPositions — Reposition all objects relative to g_hudX/Y |
+//+------------------------------------------------------------------+
+void UpdateHUDLayoutPositions()
+{
+    int lx = g_hudX + 12;
+    int vx = g_hudX + 228;
+    int y  = g_hudY + 4;
+
+    // Backgrounds
+    ObjectSetInteger(0, HUD_PREFIX + "BG",     OBJPROP_XDISTANCE, g_hudX);
+    ObjectSetInteger(0, HUD_PREFIX + "BG",     OBJPROP_YDISTANCE, g_hudY);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_XDISTANCE, g_hudX);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_YDISTANCE, g_hudY);
+
+    // Row 0: Title & Auto-Trade
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_Title",     OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_Title",     OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_AutoTrade", OBJPROP_XDISTANCE, g_hudX + 135);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_AutoTrade", OBJPROP_YDISTANCE, y - 1);
+
+    // Row 1: Session
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_Session", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_Session", OBJPROP_YDISTANCE, y);
+
+    // Separator 1
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "SEP1", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SEP1", OBJPROP_YDISTANCE, y);
+
+    // ACCOUNT Header
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Hdr", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Hdr", OBJPROP_YDISTANCE, y);
+
+    // Equity
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Equity_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Equity_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Equity_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Equity_Val", OBJPROP_YDISTANCE, y);
+
+    // Balance
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Balance_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Balance_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Balance_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_Balance_Val", OBJPROP_YDISTANCE, y);
+
+    // Daily PnL
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_PnL_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_PnL_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_PnL_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_PnL_Val", OBJPROP_YDISTANCE, y);
+
+    // Drawdown
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_DD_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_DD_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_DD_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "ACCT_DD_Val", OBJPROP_YDISTANCE, y);
+
+    // Separator 2
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "SEP2", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SEP2", OBJPROP_YDISTANCE, y);
+
+    // ACTIVE TRADE Header
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Hdr", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Hdr", OBJPROP_YDISTANCE, y);
+
+    // Direction
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Dir_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Dir_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Dir_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Dir_Val", OBJPROP_YDISTANCE, y);
+
+    // Entry
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Entry_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Entry_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Entry_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Entry_Val", OBJPROP_YDISTANCE, y);
+
+    // Stop Loss
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_SL_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_SL_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_SL_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_SL_Val", OBJPROP_YDISTANCE, y);
+
+    // Take Profit
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_TP_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_TP_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_TP_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_TP_Val", OBJPROP_YDISTANCE, y);
+
+    // Float PnL
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Float_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Float_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Float_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Float_Val", OBJPROP_YDISTANCE, y);
+
+    // Partial
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Part_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Part_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Part_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "TRADE_Part_Val", OBJPROP_YDISTANCE, y);
+
+    // Buttons: CloseAll & MoveToBE
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_CloseAll",       OBJPROP_XDISTANCE, g_hudX + 12);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_CloseAll",       OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_MoveToBreakEven", OBJPROP_XDISTANCE, g_hudX + 123);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_MoveToBreakEven", OBJPROP_YDISTANCE, y);
+
+    // Separator 3
+    y += HUD_ROW_H + 1;
+    ObjectSetInteger(0, HUD_PREFIX + "SEP3", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SEP3", OBJPROP_YDISTANCE, y);
+
+    // SIGNAL Header
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Hdr", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Hdr", OBJPROP_YDISTANCE, y);
+
+    // Status
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Status_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Status_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Status_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Status_Val", OBJPROP_YDISTANCE, y);
+
+    // Conf
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Conf_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Conf_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Conf_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Conf_Val", OBJPROP_YDISTANCE, y);
+
+    // Dir
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Dir_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Dir_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Dir_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_Dir_Val", OBJPROP_YDISTANCE, y);
+
+    // DOL
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_DOL_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_DOL_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_DOL_Val", OBJPROP_XDISTANCE, vx);
+    ObjectSetInteger(0, HUD_PREFIX + "SIG_DOL_Val", OBJPROP_YDISTANCE, y);
+
+    // Reset Signal button
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_ResetSignal", OBJPROP_XDISTANCE, g_hudX + 12);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_ResetSignal", OBJPROP_YDISTANCE, y);
+
+    // Separator 4
+    y += HUD_ROW_H + 1;
+    ObjectSetInteger(0, HUD_PREFIX + "SEP4", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "SEP4", OBJPROP_YDISTANCE, y);
+
+    // RISK SETTINGS Header
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Hdr", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Hdr", OBJPROP_YDISTANCE, y);
+
+    // Risk % Stepper
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Risk_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Risk_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Risk_Dn",   OBJPROP_XDISTANCE, g_hudX + 120);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Risk_Dn",   OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Risk_Val",  OBJPROP_XDISTANCE, g_hudX + 175);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Risk_Val",  OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Risk_Up",   OBJPROP_XDISTANCE, g_hudX + 210);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Risk_Up",   OBJPROP_YDISTANCE, y);
+
+    // Max Spread Stepper
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Spread_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Spread_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Spread_Dn",   OBJPROP_XDISTANCE, g_hudX + 120);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Spread_Dn",   OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Spread_Val",  OBJPROP_XDISTANCE, g_hudX + 175);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Spread_Val",  OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Spread_Up",   OBJPROP_XDISTANCE, g_hudX + 210);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_Spread_Up",   OBJPROP_YDISTANCE, y);
+
+    // Max DD Stepper
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_DD_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_DD_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_DD_Dn",   OBJPROP_XDISTANCE, g_hudX + 120);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_DD_Dn",   OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_DD_Val",  OBJPROP_XDISTANCE, g_hudX + 175);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_DD_Val",  OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_DD_Up",   OBJPROP_XDISTANCE, g_hudX + 210);
+    ObjectSetInteger(0, HUD_PREFIX + "STP_DD_Up",   OBJPROP_YDISTANCE, y);
+
+    // Trail Stop
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Trail_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Trail_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_TrailStop",  OBJPROP_XDISTANCE, g_hudX + 158);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_TrailStop",  OBJPROP_YDISTANCE, y);
+
+    // Partial Close
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Part_Lbl",    OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Part_Lbl",    OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_PartialClose", OBJPROP_XDISTANCE, g_hudX + 158);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_PartialClose", OBJPROP_YDISTANCE, y);
+
+    // Pause Entry
+    y += HUD_ROW_H;
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Pause_Lbl", OBJPROP_XDISTANCE, lx);
+    ObjectSetInteger(0, HUD_PREFIX + "RISK_Pause_Lbl", OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_Pause",      OBJPROP_XDISTANCE, g_hudX + 158);
+    ObjectSetInteger(0, HUD_PREFIX + "BTN_Pause",      OBJPROP_YDISTANCE, y);
+
+    ChartRedraw(0);
+}
+
+//+------------------------------------------------------------------+
 //| CreateHUD — Build all chart objects (called once in OnInit)      |
 //+------------------------------------------------------------------+
 void CreateHUD()
 {
-    int lx  = HUD_X;                   // x of left-aligned label
-    int vx  = HUD_X - HUD_WIDTH + 5;  // x of right-side value label
-    int y   = HUD_Y_START;
+    // Load persisted HUD coordinates or default to top-right
+    int chartWidth = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+    if (chartWidth <= 0) chartWidth = 1000;
 
-    // --- Background panel ---
+    string gvXName = StringFormat("MNS_EA_HUD_X_%I64d", ChartID());
+    string gvYName = StringFormat("MNS_EA_HUD_Y_%I64d", ChartID());
+
+    if (GlobalVariableCheck(gvXName))
+        g_hudX = (int)GlobalVariableGet(gvXName);
+    else
+        g_hudX = MathMax(20, chartWidth - 260);
+
+    if (GlobalVariableCheck(gvYName))
+        g_hudY = (int)GlobalVariableGet(gvYName);
+    else
+        g_hudY = 20;
+
+    int lx = g_hudX + 12;
+    int vx = g_hudX + 228;
+    int y  = g_hudY + 4;
+
+    // --- Main Solid Black Background Panel ---
     ObjectCreate(0, HUD_PREFIX + "BG", OBJ_RECTANGLE_LABEL, 0, 0, 0);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_CORNER,    HUD_CORNER);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_XDISTANCE, HUD_X - HUD_WIDTH - 15);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_YDISTANCE, HUD_Y_START - 5);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_XSIZE,     HUD_WIDTH + 30);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_YSIZE,     590);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BGCOLOR,   HUD_COL_BG);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_COLOR,     HUD_COL_BORDER); // Border color
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_CORNER,      HUD_CORNER);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_XDISTANCE,   g_hudX);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_YDISTANCE,   g_hudY);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_XSIZE,       HUD_WIDTH);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_YSIZE,       606);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BGCOLOR,     HUD_COL_BG);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_COLOR,       HUD_COL_BORDER); // Border color
     ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BORDER_TYPE, BORDER_FLAT);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BACK,      false);
-    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_SELECTABLE, false);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BACK,        false);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_SELECTABLE,  false);
+
+    // --- Header Drag Bar Background ---
+    ObjectCreate(0, HUD_PREFIX + "HDR_BG", OBJ_RECTANGLE_LABEL, 0, 0, 0);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_CORNER,      HUD_CORNER);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_XDISTANCE,   g_hudX);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_YDISTANCE,   g_hudY);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_XSIZE,       HUD_WIDTH);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_YSIZE,       24);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_BGCOLOR,     HUD_COL_HDR_BG);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_COLOR,       HUD_COL_BORDER);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_BACK,        false);
+    ObjectSetInteger(0, HUD_PREFIX + "HDR_BG", OBJPROP_SELECTABLE,  false);
 
     // === ROW 0: Header title + Auto-Trade button ===
     HUD_CreateLabel(HUD_PREFIX + "HDR_Title", lx, y, "MNS EA v1.0", HUD_COL_HEADER, 9);
-    HUD_CreateButton(HUD_PREFIX + "BTN_AutoTrade", 130, y - 1, 90, 16, "AUTO: OFF", HUD_COL_OFF);
+    HUD_CreateButton(HUD_PREFIX + "BTN_AutoTrade", g_hudX + 135, y - 1, 95, 16, "AUTO: OFF", HUD_COL_OFF);
 
     // === ROW 1: Session info ===
     y += HUD_ROW_H;
@@ -328,19 +602,19 @@ void CreateHUD()
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "ACCT_Equity_Lbl", lx, y, "Equity", HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "ACCT_Equity_Val", vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "ACCT_Equity_Val", vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "ACCT_Balance_Lbl", lx, y, "Balance", HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "ACCT_Balance_Val", vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "ACCT_Balance_Val", vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "ACCT_PnL_Lbl", lx, y, "Daily P&L", HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "ACCT_PnL_Val", vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "ACCT_PnL_Val", vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "ACCT_DD_Lbl", lx, y, "Drawdown", HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "ACCT_DD_Val", vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "ACCT_DD_Val", vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     // === Separator 2 ===
     y += HUD_ROW_H;
@@ -352,32 +626,32 @@ void CreateHUD()
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "TRADE_Dir_Lbl",   lx, y, "Direction",  HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "TRADE_Dir_Val",   vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "TRADE_Dir_Val",   vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "TRADE_Entry_Lbl", lx, y, "Entry",      HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "TRADE_Entry_Val", vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "TRADE_Entry_Val", vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "TRADE_SL_Lbl",    lx, y, "Stop Loss",  HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "TRADE_SL_Val",    vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "TRADE_SL_Val",    vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "TRADE_TP_Lbl",    lx, y, "Take Profit", HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "TRADE_TP_Val",    vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "TRADE_TP_Val",    vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "TRADE_Float_Lbl", lx, y, "Float P&L",  HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "TRADE_Float_Val", vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "TRADE_Float_Val", vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "TRADE_Part_Lbl",  lx, y, "Partial",    HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "TRADE_Part_Val",  vx - 5, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "TRADE_Part_Val",  vx, y, "---", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     // Action buttons: CLOSE ALL and MOVE TO B/E on same row
     y += HUD_ROW_H;
-    HUD_CreateButton(HUD_PREFIX + "BTN_CloseAll",       lx - 10, y, 95, 15, "CLOSE ALL",   HUD_COL_OFF);
-    HUD_CreateButton(HUD_PREFIX + "BTN_MoveToBreakEven", 140, y, 100, 15, "MOVE TO B/E", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "BTN_CloseAll",       g_hudX + 12,  y, 105, 15, "CLOSE ALL",   HUD_COL_OFF);
+    HUD_CreateButton(HUD_PREFIX + "BTN_MoveToBreakEven", g_hudX + 123, y, 105, 15, "MOVE TO B/E", HUD_COL_ACTION);
 
     // === Separator 3 ===
     y += HUD_ROW_H + 1;
@@ -389,22 +663,22 @@ void CreateHUD()
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "SIG_Status_Lbl", lx, y, "Status",     HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "SIG_Status_Val", vx - 5, y, "NONE", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "SIG_Status_Val", vx, y, "NONE", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "SIG_Conf_Lbl", lx, y, "Confidence",  HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "SIG_Conf_Val", vx - 5, y, "---",      HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "SIG_Conf_Val", vx, y, "---",      HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "SIG_Dir_Lbl", lx, y, "Direction",    HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "SIG_Dir_Val", vx - 5, y, "---",       HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "SIG_Dir_Val", vx, y, "---",       HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
     HUD_CreateLabel(HUD_PREFIX + "SIG_DOL_Lbl", lx, y, "DOL",          HUD_COL_LABEL);
-    HUD_CreateLabel(HUD_PREFIX + "SIG_DOL_Val", vx - 5, y, "---",       HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
+    HUD_CreateLabel(HUD_PREFIX + "SIG_DOL_Val", vx, y, "---",       HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_RIGHT);
 
     y += HUD_ROW_H;
-    HUD_CreateButton(HUD_PREFIX + "BTN_ResetSignal", lx - 10, y, 130, 15, "RESET SIGNAL", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "BTN_ResetSignal", g_hudX + 12, y, 216, 15, "RESET SIGNAL", HUD_COL_ACTION);
 
     // === Separator 4 ===
     y += HUD_ROW_H + 1;
@@ -417,38 +691,38 @@ void CreateHUD()
     // Risk % stepper row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Risk_Lbl",   lx, y, "Risk %",     HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "STP_Risk_Dn",     140,  y, 18, 14, "v", HUD_COL_ACTION);
-    HUD_CreateLabel (HUD_PREFIX + "STP_Risk_Val",    90, y, "1.00%", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
-    HUD_CreateButton(HUD_PREFIX + "STP_Risk_Up",     58, y, 18, 14, "^", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "STP_Risk_Dn",     g_hudX + 120,  y, 18, 14, "v", HUD_COL_ACTION);
+    HUD_CreateLabel (HUD_PREFIX + "STP_Risk_Val",    g_hudX + 175, y, "1.00%", HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
+    HUD_CreateButton(HUD_PREFIX + "STP_Risk_Up",     g_hudX + 210, y, 18, 14, "^", HUD_COL_ACTION);
 
     // Max Spread stepper row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Spread_Lbl", lx, y, "Max Spread", HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "STP_Spread_Dn",  140,  y, 18, 14, "v", HUD_COL_ACTION);
-    HUD_CreateLabel (HUD_PREFIX + "STP_Spread_Val",  90, y, "50pt",  HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
-    HUD_CreateButton(HUD_PREFIX + "STP_Spread_Up",   58, y, 18, 14, "^", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "STP_Spread_Dn",  g_hudX + 120,  y, 18, 14, "v", HUD_COL_ACTION);
+    HUD_CreateLabel (HUD_PREFIX + "STP_Spread_Val",  g_hudX + 175, y, "50pt",  HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
+    HUD_CreateButton(HUD_PREFIX + "STP_Spread_Up",   g_hudX + 210, y, 18, 14, "^", HUD_COL_ACTION);
 
     // Max DD% stepper row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_DD_Lbl",     lx, y, "Max DD%",    HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "STP_DD_Dn",       140,  y, 18, 14, "v", HUD_COL_ACTION);
-    HUD_CreateLabel (HUD_PREFIX + "STP_DD_Val",      90, y, "5.0%",  HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
-    HUD_CreateButton(HUD_PREFIX + "STP_DD_Up",       58, y, 18, 14, "^", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "STP_DD_Dn",       g_hudX + 120,  y, 18, 14, "v", HUD_COL_ACTION);
+    HUD_CreateLabel (HUD_PREFIX + "STP_DD_Val",      g_hudX + 175, y, "5.0%",  HUD_COL_VALUE, HUD_FONT_SIZE, ANCHOR_TOP);
+    HUD_CreateButton(HUD_PREFIX + "STP_DD_Up",       g_hudX + 210, y, 18, 14, "^", HUD_COL_ACTION);
 
     // Trail Stop toggle row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Trail_Lbl",   lx, y, "Trail Stop", HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "BTN_TrailStop",    90,  y, 50, 14, "ON", HUD_COL_ON);
+    HUD_CreateButton(HUD_PREFIX + "BTN_TrailStop",    g_hudX + 158,  y, 70, 14, "ON", HUD_COL_ON);
 
     // Partial Close toggle row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Part_Lbl",    lx, y, "Part. Close", HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "BTN_PartialClose", 90,  y, 50, 14, "ON", HUD_COL_ON);
+    HUD_CreateButton(HUD_PREFIX + "BTN_PartialClose", g_hudX + 158,  y, 70, 14, "ON", HUD_COL_ON);
 
     // Pause Entries toggle row
     y += HUD_ROW_H;
     HUD_CreateLabel (HUD_PREFIX + "RISK_Pause_Lbl",   lx, y, "Pause Entry", HUD_COL_LABEL);
-    HUD_CreateButton(HUD_PREFIX + "BTN_Pause",        100,  y, 60, 14, "PAUSE", HUD_COL_ACTION);
+    HUD_CreateButton(HUD_PREFIX + "BTN_Pause",        g_hudX + 158,  y, 70, 14, "PAUSE", HUD_COL_ACTION);
 
     ChartRedraw(0);
 }
@@ -468,19 +742,9 @@ void UpdateHUD()
     g_hudForceUpdate = false;
     lastUpdate = TimeCurrent();
 
-    // === DYNAMIC BG PANEL FOCUS / UNFOCUS ===
-    if (TimeLocal() - g_lastHudInteractionTime > 10)
-    {
-        // Unfocused state (Muted background, no borders)
-        ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BGCOLOR, C'8,8,10');
-        ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_COLOR,   clrNONE);
-    }
-    else
-    {
-        // Focused state (Solid background, highlighted borders)
-        ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BGCOLOR, HUD_COL_BG);
-        ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_COLOR,   HUD_COL_BORDER);
-    }
+    // Ensure solid dark background stays solid black (no transparent fading)
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_BGCOLOR, HUD_COL_BG);
+    ObjectSetInteger(0, HUD_PREFIX + "BG", OBJPROP_COLOR,   HUD_COL_BORDER);
 
     // === HEADER ===
     string autoStr = g_runtimeAutoTrading ? "ON " : "OFF";
@@ -705,11 +969,74 @@ int OnInit()
         }
     }
 
-    //--- Fetch active unified engine configuration
-    SEngineConfig cfg = CMNSConfig::GetActive();
     double pointSize = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
     if (pointSize <= 0.0) pointSize = _Point;
     double staticMinBreakDist = 2.0 * pointSize;
+
+    //--- 5b. Auto-detect optimized symbol presets
+    if (InpAutoDetectPairs)
+    {
+        string symbol = _Symbol;
+        StringToUpper(symbol);
+        if (StringFind(symbol, "EURUSD") >= 0)
+        {
+            MNS_Log(MNS_LOG_INFO, "MNS_EA", "Auto-detected EURUSD. Applying optimized presets...");
+            CMNSConfig::UpdateParameter("externalDepth", 15.0);
+            CMNSConfig::UpdateParameter("internalDepth", 5.0);
+            CMNSConfig::UpdateParameter("minBreakDistance", 10.0 * pointSize);
+            CMNSConfig::UpdateParameter("confidenceThreshold", 90.0);
+            CMNSConfig::UpdateParameter("displacementMinAtrMultiple", 1.20);
+            CMNSConfig::UpdateParameter("displacementMinBodyRatio", 0.65);
+            CMNSConfig::UpdateParameter("displacementMinCloseStrength", 0.75);
+        }
+        else if (StringFind(symbol, "GBPUSD") >= 0)
+        {
+            MNS_Log(MNS_LOG_INFO, "MNS_EA", "Auto-detected GBPUSD. Applying optimized presets...");
+            CMNSConfig::UpdateParameter("externalDepth", 18.0);
+            CMNSConfig::UpdateParameter("internalDepth", 6.0);
+            CMNSConfig::UpdateParameter("minBreakDistance", 15.0 * pointSize);
+            CMNSConfig::UpdateParameter("confidenceThreshold", 92.0);
+            CMNSConfig::UpdateParameter("displacementMinAtrMultiple", 1.20);
+            CMNSConfig::UpdateParameter("displacementMinBodyRatio", 0.65);
+            CMNSConfig::UpdateParameter("displacementMinCloseStrength", 0.75);
+        }
+        else if (StringFind(symbol, "XAUUSD") >= 0 || StringFind(symbol, "GOLD") >= 0)
+        {
+            MNS_Log(MNS_LOG_INFO, "MNS_EA", "Auto-detected Gold (XAUUSD). Applying optimized presets...");
+            CMNSConfig::UpdateParameter("externalDepth", 25.0);
+            CMNSConfig::UpdateParameter("internalDepth", 8.0);
+            CMNSConfig::UpdateParameter("minBreakDistance", 50.0 * pointSize);
+            CMNSConfig::UpdateParameter("confidenceThreshold", 94.0);
+            CMNSConfig::UpdateParameter("displacementMinAtrMultiple", 1.50);
+            CMNSConfig::UpdateParameter("displacementMinBodyRatio", 0.70);
+            CMNSConfig::UpdateParameter("displacementMinCloseStrength", 0.80);
+        }
+        else if (StringFind(symbol, "NAS100") >= 0 || StringFind(symbol, "US100") >= 0 || StringFind(symbol, "USTECH") >= 0 || StringFind(symbol, "NDX") >= 0)
+        {
+            MNS_Log(MNS_LOG_INFO, "MNS_EA", "Auto-detected NAS100 (NASDAQ Index). Applying optimized presets...");
+            CMNSConfig::UpdateParameter("externalDepth", 20.0);
+            CMNSConfig::UpdateParameter("internalDepth", 6.0);
+            CMNSConfig::UpdateParameter("minBreakDistance", 200.0 * pointSize);
+            CMNSConfig::UpdateParameter("confidenceThreshold", 92.0);
+            CMNSConfig::UpdateParameter("displacementMinAtrMultiple", 1.30);
+            CMNSConfig::UpdateParameter("displacementMinBodyRatio", 0.70);
+            CMNSConfig::UpdateParameter("displacementMinCloseStrength", 0.80);
+        }
+        else if (StringFind(symbol, "USOIL") >= 0 || StringFind(symbol, "WTI") >= 0 || StringFind(symbol, "CL") >= 0 || StringFind(symbol, "OIL") >= 0)
+        {
+            MNS_Log(MNS_LOG_INFO, "MNS_EA", "Auto-detected USOIL (Crude Oil). Applying optimized presets...");
+            CMNSConfig::UpdateParameter("externalDepth", 15.0);
+            CMNSConfig::UpdateParameter("internalDepth", 5.0);
+            CMNSConfig::UpdateParameter("minBreakDistance", 15.0 * pointSize);
+            CMNSConfig::UpdateParameter("confidenceThreshold", 90.0);
+            CMNSConfig::UpdateParameter("displacementMinAtrMultiple", 1.20);
+            CMNSConfig::UpdateParameter("displacementMinBodyRatio", 0.65);
+            CMNSConfig::UpdateParameter("displacementMinCloseStrength", 0.75);
+        }
+    }
+
+    //--- Fetch active unified engine configuration after preset updates
+    SEngineConfig cfg = CMNSConfig::GetActive();
 
     //--- 6. Initialize all 11 core strategy engines in strict DAG order
     if (!g_swingDetector.Initialize(cfg.externalDepth, cfg.internalDepth))
@@ -804,7 +1131,8 @@ int OnInit()
     g_runtimeMaxDailyDD   = InpMaxDailyDrawdown;
     g_lastHudInteractionTime = TimeLocal();
 
-    //--- 9. Build on-chart HUD
+    //--- 9. Build on-chart HUD & enable mouse move events for dragging
+    ChartSetInteger(0, CHART_EVENT_MOUSE_MOVE, true);
     CreateHUD();
     UpdateHUD();
 
@@ -1255,6 +1583,66 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
 {
+    // === Mouse Move for Interactive Panel Dragging ===
+    if (id == CHARTEVENT_MOUSE_MOVE)
+    {
+        int mouseX = (int)lparam;
+        int mouseY = (int)dparam;
+        uint mouseState = (uint)StringToInteger(sparam);
+        bool leftBtnDown = (mouseState & 1) != 0;
+
+        if (leftBtnDown)
+        {
+            if (!g_hudIsDragging)
+            {
+                // Check if drag initiated on header bar or background panel
+                if (mouseX >= g_hudX && mouseX <= g_hudX + HUD_WIDTH &&
+                    mouseY >= g_hudY && mouseY <= g_hudY + 606)
+                {
+                    g_hudIsDragging = true;
+                    g_hudDragMouseX = mouseX;
+                    g_hudDragMouseY = mouseY;
+                    g_hudStartPosX  = g_hudX;
+                    g_hudStartPosY  = g_hudY;
+                    ChartSetInteger(0, CHART_MOUSE_SCROLL, false);
+                }
+            }
+            else
+            {
+                int dx = mouseX - g_hudDragMouseX;
+                int dy = mouseY - g_hudDragMouseY;
+                int newX = g_hudStartPosX + dx;
+                int newY = g_hudStartPosY + dy;
+
+                int chartW = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+                int chartH = (int)ChartGetInteger(0, CHART_HEIGHT_IN_PIXELS);
+                newX = MathMax(0, MathMin(newX, chartW - HUD_WIDTH));
+                newY = MathMax(0, MathMin(newY, chartH - 606));
+
+                if (newX != g_hudX || newY != g_hudY)
+                {
+                    g_hudX = newX;
+                    g_hudY = newY;
+                    UpdateHUDLayoutPositions();
+
+                    string gvXName = StringFormat("MNS_EA_HUD_X_%I64d", ChartID());
+                    string gvYName = StringFormat("MNS_EA_HUD_Y_%I64d", ChartID());
+                    GlobalVariableSet(gvXName, (double)g_hudX);
+                    GlobalVariableSet(gvYName, (double)g_hudY);
+                }
+            }
+        }
+        else
+        {
+            if (g_hudIsDragging)
+            {
+                g_hudIsDragging = false;
+                ChartSetInteger(0, CHART_MOUSE_SCROLL, true);
+            }
+        }
+        return;
+    }
+
     if (id != CHARTEVENT_OBJECT_CLICK) return;
 
     // Reset HUD user inactivity timer

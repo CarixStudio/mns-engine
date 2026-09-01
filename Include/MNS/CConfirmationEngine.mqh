@@ -120,6 +120,17 @@ class CConfirmationEngine {
     double GetConfidenceScore() const {
         return m_state.confidenceScore;
     }
+
+    /// @brief Overrides the confirmation state for testing.
+    void OverrideState(EConfirmationState stateVal, EConfirmationDirection dir, double triggerPrice, double invalidationLevel, datetime triggerTime)
+    {
+        m_state.state = stateVal;
+        m_state.direction = dir;
+        m_state.triggerPrice = triggerPrice;
+        m_state.invalidationLevel = invalidationLevel;
+        m_state.triggerTime = triggerTime;
+        m_state.confidenceScore = 80.0;
+    }
 };
 
 //+------------------------------------------------------------------+

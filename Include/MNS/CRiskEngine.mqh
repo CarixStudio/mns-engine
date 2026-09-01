@@ -72,6 +72,12 @@ public:
                                                  bool mtfReversal,
                                                  double currentDailyDrawdownPercent,
                                                  string symbol);
+
+    /// @brief Synchronizes the partial close tracking state.
+    void        SetHasPartialClosed(bool flag) { m_hasPartialClosed = flag; }
+
+    /// @brief Returns the partial close tracking state.
+    bool        GetHasPartialClosed() const { return m_hasPartialClosed; }
 };
 
 //+------------------------------------------------------------------+

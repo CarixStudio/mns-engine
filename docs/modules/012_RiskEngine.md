@@ -99,3 +99,13 @@ The **Risk Engine** (`CRiskEngine`) is responsible for calculating pre-trade ris
 - `closePartially` (True if +1.0R reached and not yet partially closed)
 - `partialVolume` (Lots to close, i.e., 50% of current volume)
 - `newStopLoss` (New stop loss price if trailing or moving to break-even)
+
+## 4. State Recovery & Synchronization
+
+To handle situations where the Expert Advisor restarts (e.g., terminal crash, server reboot, or timeframe changes) and must rebuild its memory of active positions:
+- The `CRiskEngine` exposes getter/setter methods:
+  - `SetHasPartialClosed(bool flag)`
+  - `GetHasPartialClosed()`
+- On startup or state recovery, the EA scans open positions on the account. If it detects that a position's current volume is less than or equal to half of its original sized volume, it identifies the position as having already been partially closed.
+- The EA calls `g_riskEngine.SetHasPartialClosed(true)` to synchronize the engine's internal tracker, preventing duplicate partial close signals and preserving correct trailing stop thresholds.
+
